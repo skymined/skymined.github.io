@@ -1,5 +1,5 @@
 ---
-title: Skymined
+title:
 ---
 > [!note] 감사결남~
 
