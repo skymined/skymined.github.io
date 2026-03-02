@@ -44,6 +44,31 @@ html {
   color: #ffffff !important;
 }
 
+/* Obsidian-like heading colors for markdown levels #, ##, ### in dark mode */
+:root[saved-theme="dark"] {
+  --obsidian-h1: #5f93c6;
+  --obsidian-h2: #66a2d8;
+  --obsidian-h3: #74b1e8;
+}
+
+:root[saved-theme="dark"] article.popover-hint h1 {
+  color: var(--obsidian-h1);
+}
+
+:root[saved-theme="dark"] article.popover-hint h2 {
+  color: var(--obsidian-h2);
+}
+
+:root[saved-theme="dark"] article.popover-hint h3 {
+  color: var(--obsidian-h3);
+}
+
+:root[saved-theme="dark"] article.popover-hint h1 > a[role="anchor"],
+:root[saved-theme="dark"] article.popover-hint h2 > a[role="anchor"],
+:root[saved-theme="dark"] article.popover-hint h3 > a[role="anchor"] {
+  color: inherit;
+}
+
 /* Breadcrumbs: yellow */
 .breadcrumb-container .breadcrumb-element > a {
   color: var(--secondary) !important;
