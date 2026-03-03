@@ -17,3 +17,6 @@ title:
 - Embodied Agent
 - Reinforcement Learning
 - Computer Graphics
+
+## 아카이빙
+[[CLI 기본 명령어들 아카이빙]]
