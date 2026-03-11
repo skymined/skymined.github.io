@@ -2,38 +2,367 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <title>Redirecting to /blog</title>
+    <title>SKYMINED</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="refresh" content="0; url=https://skymined.github.io/blog/" />
-    <link rel="canonical" href="https://skymined.github.io/blog/" />
-    <script>
-      window.location.replace("https://skymined.github.io/blog/")
-    </script>
+    <meta
+      name="description"
+      content="김하늘의 소개 페이지. 연구 관심사, 연락처, 그리고 블로그로 가는 입구를 한 곳에 정리했습니다."
+    />
+    <link rel="canonical" href="https://skymined.github.io/" />
     <style>
+      :root {
+        --bg: #f5efe6;
+        --panel: rgba(255, 252, 246, 0.82);
+        --panel-strong: rgba(255, 251, 243, 0.92);
+        --text: #1d2a36;
+        --muted: #5f6d78;
+        --line: rgba(29, 42, 54, 0.12);
+        --accent: #0f766e;
+        --accent-strong: #124e66;
+        --warm: #d9a441;
+        --shadow: 0 30px 80px rgba(29, 42, 54, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         min-height: 100vh;
-        display: grid;
-        place-items: center;
-        font-family: system-ui, sans-serif;
-        background: #f6f7fb;
-        color: #1f2937;
+        color: var(--text);
+        font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 30%),
+          radial-gradient(circle at top right, rgba(217, 164, 65, 0.16), transparent 28%),
+          linear-gradient(180deg, #f8f3ea 0%, var(--bg) 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(29, 42, 54, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(29, 42, 54, 0.04) 1px, transparent 1px);
+        background-size: 28px 28px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 90%);
       }
 
       main {
-        max-width: 32rem;
-        padding: 2rem;
-        text-align: center;
+        width: min(1100px, calc(100% - 2rem));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      .shell {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .hero {
+        padding: 24px;
+        display: grid;
+        gap: 20px;
+      }
+
+      .hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand {
+        letter-spacing: 0.18em;
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(18, 78, 102, 0.08);
+        color: var(--accent-strong);
+        font-size: 0.92rem;
+      }
+
+      .status::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 6px rgba(15, 118, 110, 0.12);
+      }
+
+      .hero-body {
+        display: grid;
+        grid-template-columns: 1.4fr 0.95fr;
+        gap: 20px;
+      }
+
+      .headline {
+        padding: 12px 6px 6px;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--accent-strong);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 9ch;
+        line-height: 0.95;
+        font-size: clamp(3rem, 8vw, 6.8rem);
+        letter-spacing: -0.06em;
+      }
+
+      .lead {
+        margin: 20px 0 0;
+        max-width: 42rem;
+        color: var(--muted);
+        font-size: 1.08rem;
+        line-height: 1.75;
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        text-decoration: none;
+        font-weight: 700;
+        transition:
+          transform 120ms ease,
+          border-color 120ms ease,
+          background 120ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+      }
+
+      .button-primary {
+        color: #fffdf8;
+        background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+      }
+
+      .button-secondary {
+        color: var(--text);
+        border-color: var(--line);
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .side {
+        display: grid;
+        gap: 14px;
+      }
+
+      .card {
+        padding: 18px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+      }
+
+      .card h2,
+      .card h3 {
+        margin: 0 0 10px;
+        font-size: 0.94rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .card p,
+      .card li,
+      .card a {
+        font-size: 0.98rem;
+        line-height: 1.7;
+      }
+
+      .meta-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .meta-item {
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+
+      .meta-item:first-child {
+        padding-top: 0;
+        border-top: 0;
+      }
+
+      .meta-label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .meta-value {
+        font-weight: 600;
+      }
+
+      .focus-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .focus-list li {
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(217, 164, 65, 0.08);
+      }
+
+      .footer-note {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 20px 24px 24px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.94rem;
       }
 
       a {
-        color: #0f766e;
+        color: inherit;
+      }
+
+      .inline-link {
+        color: var(--accent-strong);
+      }
+
+      @media (max-width: 860px) {
+        .hero-body {
+          grid-template-columns: 1fr;
+        }
+
+        .footer-note,
+        .hero-top {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+
+      @media (max-width: 560px) {
+        main {
+          width: min(100% - 1rem, 100%);
+          padding: 8px 0 20px;
+        }
+
+        .shell {
+          border-radius: 22px;
+        }
+
+        .hero {
+          padding: 18px;
+        }
+
+        h1 {
+          max-width: none;
+        }
       }
     </style>
   </head>
   <body>
     <main>
-      <p><a href="https://skymined.github.io/blog/">https://skymined.github.io/blog/</a> 로 이동합니다.</p>
+      <section class="shell">
+        <div class="hero">
+          <div class="hero-top">
+            <div class="brand">SKYMINED</div>
+            <div class="status">Research notes, experiments, and archive</div>
+          </div>
+
+          <div class="hero-body">
+            <div class="headline">
+              <p class="eyebrow">Kim Haneul</p>
+              <h1>Build, study, archive.</h1>
+              <p class="lead">
+                고려대학교에서 인공지능과 컴퓨터 그래픽스를 중심으로 공부하고 있습니다.
+                이곳은 저를 소개하는 루트 페이지이고, 실제 기록은 블로그에 계속 쌓아두고 있습니다.
+              </p>
+
+              <div class="cta-row">
+                <a class="button button-primary" href="https://skymined.github.io/blog/">블로그 보기</a>
+                <a class="button button-secondary" href="https://github.com/skymined">GitHub</a>
+                <a class="button button-secondary" href="mailto:adsky0309@korea.ac.kr">Email</a>
+              </div>
+            </div>
+
+            <div class="side">
+              <section class="card">
+                <h2>Who I Am</h2>
+                <div class="meta-grid">
+                  <div class="meta-item">
+                    <span class="meta-label">Birthday</span>
+                    <div class="meta-value">2000.03.09</div>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Current</span>
+                    <div class="meta-value">고려대학교 컴퓨터학과 인공지능응용 석박통합과정, 2025.09 -</div>
+                  </div>
+                  <div class="meta-item">
+                    <span class="meta-label">Background</span>
+                    <div class="meta-value">고려대학교 건축사회환경공학부 학사, 2019.03 - 2025.08</div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="card">
+                <h3>Focus</h3>
+                <ul class="focus-list">
+                  <li>3D Physical Animation</li>
+                  <li>Embodied Agent</li>
+                  <li>Reinforcement Learning</li>
+                  <li>Computer Graphics</li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          <span>Long-form notes and technical archives live in the <a class="inline-link" href="https://skymined.github.io/blog/">blog</a>.</span>
+          <span>Contact: <a class="inline-link" href="mailto:adsky0309@korea.ac.kr">adsky0309@korea.ac.kr</a></span>
+        </div>
+      </section>
     </main>
   </body>
 </html>
