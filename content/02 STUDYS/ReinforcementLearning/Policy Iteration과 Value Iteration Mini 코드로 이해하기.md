@@ -21,7 +21,7 @@ created: 2026-03-26 12:04
 - Value Iteration: 매번 작은 최적화 백업을 넣어 값을 조금씩 밀어 올린다
 
 
-# Mini Development
+# Cho-Mini Development
 ## 데이터 구조
 OpenAI Gym 스타일의 tabular transition model을 단순화해서 사용해본다. 상태 s와 행동 a를 주면 가능한 전이들의 리스트가 나오는 구조다. 완전 심플한 구조이기 때문에 개념 이해를 위한 Mini project로 보면 좋을 것 같음!
 
@@ -146,3 +146,6 @@ def extract_greedy_policy(P, V, gamma):
 ```
 
 `extract_greedy_policy`에서 value function은 이미 구해졌고, 각 상태에서 가장 좋은 action을 `one_step_lookahead`와  `argmax`를 이용해 구해준다.
+
+
+# Grid World Development
