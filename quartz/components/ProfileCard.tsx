@@ -1,5 +1,6 @@
 import { QuartzComponent, QuartzComponentConstructor, QuartzComponentProps } from "./types"
 import { classNames } from "../util/lang"
+import { isAbsoluteURL, joinSegments } from "../util/path"
 import style from "./styles/profileCard.scss"
 
 interface SocialLink {
@@ -23,8 +24,21 @@ const defaultLinks: SocialLink[] = [
 ]
 
 export default ((userOpts?: Options) => {
-  const ProfileCard: QuartzComponent = ({ displayClass }: QuartzComponentProps) => {
-    const imageSrc = userOpts?.imageSrc
+  const withBasePath = (src: string | undefined, baseUrl?: string) => {
+    if (!src || isAbsoluteURL(src) || !src.startsWith("/")) {
+      return src
+    }
+
+    if (!baseUrl) {
+      return src
+    }
+
+    const basePath = new URL(`https://${baseUrl}`).pathname
+    return joinSegments(basePath, src)
+  }
+
+  const ProfileCard: QuartzComponent = ({ displayClass, cfg }: QuartzComponentProps) => {
+    const imageSrc = withBasePath(userOpts?.imageSrc, cfg.baseUrl)
     const imageAlt = userOpts?.imageAlt ?? "Profile image"
     const bio =
       userOpts?.bio ??
@@ -53,7 +67,7 @@ export default ((userOpts?: Options) => {
                   {link.iconSrc ? (
                     <img
                       class="profile-link-icon"
-                      src={link.iconSrc}
+                      src={withBasePath(link.iconSrc, cfg.baseUrl)}
                       alt={link.iconAlt ?? link.label}
                       loading="lazy"
                     />
