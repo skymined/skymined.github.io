@@ -1,0 +1,5 @@
+#!/bin/sh
+
+repo_root="$(git rev-parse --show-toplevel | tr -d '\r')"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$repo_root/scripts/sync-blog.ps1"
+exit 0
