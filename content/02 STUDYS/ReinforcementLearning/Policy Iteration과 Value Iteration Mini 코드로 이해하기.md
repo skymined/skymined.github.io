@@ -44,6 +44,7 @@ P[0][1] = [(1.0, 1, 0.0, False)]
 | B(1)   | T로 종료, 보상 +1.0     | A로 이동, 보상 -0.1     |
 | T(2)   | 종료 self-loop, 보상 0 | 종료 self-loop, 보상 0 |
 검증용 정책은 policy=[1,0,0]으로 둔다. 각 step 별로 선택하는 행동을 의미한다.
+여기서 구하고자 하는 q는 1차원 벡터로, state s에서 가능한 모든 action의 q 값을 계산해서 반환하는 것이다.
 
 ```python
 def one_step_lookahead(P, s, V, gamma):  
@@ -56,7 +57,7 @@ def one_step_lookahead(P, s, V, gamma):
         q[a] = total  
     return q
 ```
-여기서 나와야 하는 결과값은 해당 정책을 사용했을 때 각 state의 value값이며, gamma=0.9를 사용하면 평가 결과는 V_pi = [0.9, 1.0, 0.0]이 나와야 한다.
+gamma=0.9를 사용하면 평가 결과는 V_pi = [0.9, 1.0, 0.0]이 나와야 한다.
 `target = reward if done else reward + gamma * V[next_state]` 이 부분은 bellman equation을 코드로 나타낸 것이다. 
 
 ## 2. Policy Evaluation
