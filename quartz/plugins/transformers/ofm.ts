@@ -6,6 +6,7 @@ import {
   PhrasingContent,
   DefinitionContent,
   Paragraph,
+  Parent,
   Code,
 } from "mdast"
 import { Element, Literal, Root as HtmlRoot } from "hast"
@@ -58,6 +59,59 @@ const defaultOptions: Options = {
   enableVideoEmbed: true,
   enableCheckbox: false,
   disableBrokenWikilinks: false,
+}
+
+const hasMeaningfulParagraphContent = (node: PhrasingContent) => {
+  return !(node.type === "text" && node.value.trim().length === 0)
+}
+
+const splitParagraphsAroundImages = (node: Paragraph): Paragraph[] | null => {
+  const containsImage = node.children.some((child) => child.type === "image")
+  const hasMixedContent = node.children.some(
+    (child) => child.type !== "image" && hasMeaningfulParagraphContent(child),
+  )
+
+  if (!containsImage || !hasMixedContent) {
+    return null
+  }
+
+  const paragraphs: Paragraph[] = []
+  let currentChildren: PhrasingContent[] = []
+
+  const pushParagraph = () => {
+    if (currentChildren.some(hasMeaningfulParagraphContent)) {
+      paragraphs.push({ type: "paragraph", children: currentChildren })
+    }
+    currentChildren = []
+  }
+
+  for (let i = 0; i < node.children.length; i++) {
+    const child = node.children[i]
+
+    if (child.type === "image") {
+      pushParagraph()
+
+      const imageParagraphChildren: PhrasingContent[] = [child]
+      const nextChild = node.children[i + 1]
+      const remainingChildren = node.children.slice(i + 2)
+      const isStandaloneCaption =
+        nextChild?.type === "emphasis" &&
+        !remainingChildren.some(hasMeaningfulParagraphContent)
+
+      if (isStandaloneCaption) {
+        imageParagraphChildren.push(nextChild)
+        i += 1
+      }
+
+      paragraphs.push({ type: "paragraph", children: imageParagraphChildren })
+      continue
+    }
+
+    currentChildren.push(child)
+  }
+
+  pushParagraph()
+  return paragraphs.length > 1 ? paragraphs : null
 }
 
 const calloutMapping = {
@@ -410,6 +464,24 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
           }
         })
       }
+
+      plugins.push(() => {
+        return (tree: Root) => {
+          visit(tree, "paragraph", (node: Paragraph, index: number | undefined, parent: Parent | undefined) => {
+            if (!parent || index === undefined) {
+              return
+            }
+
+            const splitParagraphs = splitParagraphsAroundImages(node)
+            if (!splitParagraphs) {
+              return
+            }
+
+            parent.children.splice(index, 1, ...splitParagraphs)
+            return index + splitParagraphs.length
+          })
+        }
+      })
 
       if (opts.callouts) {
         plugins.push(() => {
