@@ -23,11 +23,57 @@ interface MacroType {
   [key: string]: string | Args[]
 }
 
+const normalizeStandaloneDisplayMath = (src: string) => {
+  const lines = src.split(/\r?\n/)
+  const normalized: string[] = []
+  let activeFence: string | null = null
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const fenceMatch = trimmed.match(/^(```+|~~~+)/)
+
+    if (fenceMatch) {
+      const marker = fenceMatch[1]
+      if (activeFence === null) {
+        activeFence = marker[0]
+      } else if (activeFence === marker[0]) {
+        activeFence = null
+      }
+
+      normalized.push(line)
+      continue
+    }
+
+    if (activeFence !== null) {
+      normalized.push(line)
+      continue
+    }
+
+    const displayMathMatch = line.match(/^(\s*(?:>\s*)*)\$\$(.+)\$\$\s*$/)
+    if (displayMathMatch) {
+      const prefix = displayMathMatch[1]
+      const expression = displayMathMatch[2].trim()
+
+      if (expression.length > 0) {
+        normalized.push(`${prefix}$$`, `${prefix}${expression}`, `${prefix}$$`)
+        continue
+      }
+    }
+
+    normalized.push(line)
+  }
+
+  return normalized.join("\n")
+}
+
 export const Latex: QuartzTransformerPlugin<Partial<Options>> = (opts) => {
   const engine = opts?.renderEngine ?? "katex"
   const macros = opts?.customMacros ?? {}
   return {
     name: "Latex",
+    textTransform(_ctx, src) {
+      return normalizeStandaloneDisplayMath(src)
+    },
     markdownPlugins() {
       return [remarkMath]
     },
