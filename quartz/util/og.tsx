@@ -16,12 +16,15 @@ const defaultBodyWeight = [400]
 type OgFontRole = "header" | "body"
 
 const ogFontOverrides: Partial<Record<OgFontRole, string>> = {
-  header: "RIDIBatang",
-  body: "RIDIBatang",
+  header: "Pretendard",
+  body: "Pretendard",
 }
 
-const localFontPaths: Record<string, string> = {
-  RIDIBatang: path.join(QUARTZ, "static", "fonts", "RIDIBatang.otf"),
+const localFontPaths: Record<string, Partial<Record<number, string>>> = {
+  Pretendard: {
+    400: path.join(QUARTZ, "static", "fonts", "Pretendard-Regular.otf"),
+    700: path.join(QUARTZ, "static", "fonts", "Pretendard-Bold.otf"),
+  },
 }
 
 function getConfiguredFontName(spec: FontSpecification): string {
@@ -32,8 +35,20 @@ function resolveOgFontName(spec: FontSpecification, role: OgFontRole): string {
   return ogFontOverrides[role] ?? getConfiguredFontName(spec)
 }
 
-async function readLocalFont(fontName: string): Promise<Buffer<ArrayBufferLike> | undefined> {
-  const localFontPath = localFontPaths[fontName]
+function resolveLocalFontPath(fontName: string, weight: FontWeight): string | undefined {
+  const fontWeights = localFontPaths[fontName]
+  if (!fontWeights) {
+    return
+  }
+
+  return fontWeights[weight] ?? fontWeights[weight >= 700 ? 700 : 400]
+}
+
+async function readLocalFont(
+  fontName: string,
+  weight: FontWeight,
+): Promise<Buffer<ArrayBufferLike> | undefined> {
+  const localFontPath = resolveLocalFontPath(fontName, weight)
   if (!localFontPath) {
     return
   }
@@ -112,7 +127,7 @@ export async function fetchTtf(
   rawFontName: string,
   weight: FontWeight,
 ): Promise<Buffer<ArrayBufferLike> | undefined> {
-  const localFontData = await readLocalFont(rawFontName)
+  const localFontData = await readLocalFont(rawFontName, weight)
   if (localFontData) {
     return localFontData
   }
