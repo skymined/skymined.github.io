@@ -112,6 +112,22 @@ html {
   color: var(--secondary);
 }
 
+/* External links in article content: use gray instead of the yellow accent. */
+article a.external,
+.popover a.external {
+  color: var(--darkgray) !important;
+}
+
+article a.external:hover,
+.popover a.external:hover {
+  color: var(--darkgray) !important;
+}
+
+article a.external .external-icon > path,
+.popover a.external .external-icon > path {
+  fill: var(--darkgray) !important;
+}
+
 /* Explorer spacing */
 .explorer-content .explorer-ul > li {
   margin: 0.3rem 0;
