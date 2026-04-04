@@ -1,5 +1,17 @@
 @use "./base.scss";
 
+@font-face {
+  font-family: "RIDIBatang";
+  src: url("/blog/static/fonts/RIDIBatang.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bodyFont: "RIDIBatang", serif;
+}
+
 /* Prevent viewport width quirks that cause horizontal clipping on mobile browsers. */
 html {
   width: 100%;
