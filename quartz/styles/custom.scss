@@ -128,6 +128,29 @@ article a.external .external-icon > path,
   fill: var(--darkgray) !important;
 }
 
+/* Keep image paragraphs stacked vertically and reduce the gap below headings. */
+article p:has(> img) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.7rem 0 0.95rem;
+  max-width: 100%;
+}
+
+article p:has(> img) > img {
+  display: block;
+  margin: 0;
+}
+
+article p:has(> img) > img + em {
+  transform: none;
+}
+
+article :is(h1, h2, h3, h4, h5, h6) + p:has(> img) {
+  margin-top: 0.35rem;
+}
+
 /* Explorer spacing */
 .explorer-content .explorer-ul > li {
   margin: 0.3rem 0;
