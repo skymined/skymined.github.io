@@ -172,10 +172,24 @@ article a.external .external-icon > path,
 }
 
 /* Keep tablet layout readable by shrinking the left rail on medium screens. */
+@media all and (min-width: 1201px) {
+  .page > #quartz-body {
+    grid-template-columns: 320px minmax(0, 1fr) 320px;
+  }
+}
+
 @media all and (min-width: 801px) and (max-width: 1200px) {
   .page > #quartz-body {
     grid-template-columns: minmax(240px, 30vw) minmax(0, 1fr);
   }
+}
+
+/* Let the center column actually shrink so wide images do not intrude into the right sidebar. */
+.page > #quartz-body .center,
+.page > #quartz-body .center > article,
+.page > #quartz-body .center .page-header,
+.page > #quartz-body .center .page-footer {
+  min-width: 0;
 }
 
 /* Mobile/small-tablet hardening: avoid horizontal overflow and cramped top controls. */
