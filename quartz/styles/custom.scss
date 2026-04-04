@@ -8,8 +8,10 @@
   font-display: swap;
 }
 
-:root {
-  --bodyFont: "RIDIBatang", serif;
+body,
+.search > .search-container > .search-space > input,
+.popover > .popover-inner {
+  font-family: "RIDIBatang", serif;
 }
 
 /* Prevent viewport width quirks that cause horizontal clipping on mobile browsers. */
