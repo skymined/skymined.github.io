@@ -35,8 +35,8 @@ const normalizeStandaloneDisplayMath = (src: string) => {
     if (fenceMatch) {
       const marker = fenceMatch[1]
       if (activeFence === null) {
-        activeFence = marker[0]
-      } else if (activeFence === marker[0]) {
+        activeFence = marker
+      } else if (activeFence[0] === marker[0] && marker.length >= activeFence.length) {
         activeFence = null
       }
 

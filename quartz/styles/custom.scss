@@ -74,11 +74,18 @@ html {
   color: #ffffff !important;
 }
 
+:root {
+  --external-link-color: #667487;
+  --external-link-hover: #506077;
+}
+
 /* Obsidian-like heading colors for markdown levels #, ##, ### in dark mode */
 :root[saved-theme="dark"] {
   --obsidian-h1: #5384b6;
   --obsidian-h2: #66a2d8;
   --obsidian-h3: #9bd2f7;
+  --external-link-color: #adb7c9;
+  --external-link-hover: #c1cada;
 }
 
 :root[saved-theme="dark"] article.popover-hint h1 {
@@ -115,17 +122,25 @@ html {
 /* External links in article content: use gray instead of the yellow accent. */
 article a.external,
 .popover a.external {
-  color: var(--darkgray) !important;
+  color: var(--external-link-color) !important;
 }
 
 article a.external:hover,
 .popover a.external:hover {
-  color: var(--darkgray) !important;
+  color: var(--external-link-hover) !important;
 }
 
 article a.external .external-icon > path,
 .popover a.external .external-icon > path {
-  fill: var(--darkgray) !important;
+  fill: var(--external-link-color) !important;
+}
+
+article .katex-display,
+.popover .katex-display {
+  display: block;
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* Keep image paragraphs stacked vertically and reduce the gap below headings. */
