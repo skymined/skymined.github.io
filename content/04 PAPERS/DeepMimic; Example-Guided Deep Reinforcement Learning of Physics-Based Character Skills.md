@@ -145,7 +145,7 @@ DeepMimic을 재현하거나 확장할 때 많은 사람이 보상식에만 집�
 $$
 r_t^I = \max_{j=1, ..., k} r_t^j
 $$
-이 방식은 비슷한 계열의 동작들을 묶을 때 유용하다. 예를 들어 직진 걷기와 여러 종류의 회전 걷기 클립을 함께 넣어 두면, 정책은 현재 상황에서 가장 잘 맞는 걸음 패턴을 스스로 고른다. 중요한 것은 별도의 kinematic planner 없이도 clip 전환이 일어난다는 점이다. 다만 논문 결과를 보면 이 방법은 서로 비슷한 기술끼리 묶을 때 잘 되고, frontflip과 sideflip처럼 성격이 다른 기술을 한데 넣으면 일부 클립만 모방하는 문제가 생길 수 있다.
+이 방식은 비슷한 계열의 동작들을 묶을 때 유용하다. 예를 들어 직진 걷기와 여러 종류의 회전 걷기 클립을 함께 넣어 두면(<u>사람이 모아두는 것</u>), 정책은 현재 상황에서 가장 잘 맞는 걸음 패턴을 스스로 고른다. 중요한 것은 별도의 kinematic planner 없이도 clip 전환이 일어난다는 점이다. 다만 논문 결과를 보면 이 방법은 서로 비슷한 기술끼리 묶을 때 잘 되고, frontflip과 sideflip처럼 성격이 다른 기술을 한데 넣으면 일부 클립만 모방하는 문제가 생길 수 있다.
 
 > [!question] multi-clip의 경우 지금 직진해야 하는데 뒤돌고, 그것에 맞는 reward를 가지고 올 수 있는 거 아닌가?
 > $$r_t = \omega_I r_t^I + \omega_G r_t^G$$
@@ -157,7 +157,6 @@ goal 입력을 one-hot vector로 두고, 어떤 skill을 지금 실행할지 사
 여기서 내가 헷갈렸던 것은 skill을 사람이 직접 선택하면, policy는 대체 무얼 하는거지? 였다. 결론적으로 DeepMimic은 사용자나 데이터가 지정한 reference motion을 물리 시뮬레이션 안에서 robust하고 task-aware하게 실행하는 policy를 RL로 학습하는 것이다. <font color="#ffc000"> low-level dynamics model 자체를 배우는 게 아니라, low-level dynamics를 통과하는 control policy를 배우는 것</font>. 
 
 **\[composite policy\]** 
-![[Pasted image 20260409183436.png]]
 여러 단일-skill 정책을 각각 따로 학습해 두고, 실행 시점에 각 정책의 value function을 보고 지금 상태에서 어떤 정책이 가장 유망한지를 정한다. 지금 이 순간 어떤 정책을 실행해야 하는지를 정하는 것이다.
 $$\Pi(a \mid s) = \sum_{i=1}^{k} p^{i}(s)\,\pi^{i}(a \mid s)$$
 이것이 최종 composite policy로, 지금 상태에서 각 sub-policy를 value 기반으로 섞은 policy다. 현재 상태에서 각 skill의 value를 보고, softmax로 선택 확률을 만든 다음 그 확률로 skill을 하나 뽑으면 뽑힌 skill의 policy가 행동을 내는 것으로 value-based skill selection이다.
@@ -242,7 +241,7 @@ backflip, frontflip, sideflip, cartwheel, spinkick, roll, 그리고 get-up 정�
 
 ### 10.3 Retargeting
 **\[character retargeting\]**
-한 캐릭터의 모션을 다른 캐릭터에 맞게 변환하는 것이다. Humanoid policy를 그대로 Atlas에 적용하니 거의 아무것도 하지 못했다. 그러나 humanoid 기준 모션의 local joint rotation을 거의 그대로 Atlas에 복사하고, Atlas 전용 정책을 새로 학습하면 걷기, 달리기, 백플립, 스핀킥이 다시 나온다. 이 말은 retargeting 자체는 대충 geometry만 맞추되, 여기서 atlas 전용 policy를 다시 학습한다는 것이다. DeepMimic은 "정책 자체가 morphology-invariant"하다는 주장이 아니라, "같은 reference motion style을 다른 morphology의 물리 모델에도 다시 학습시킬 수 있다"는 주장을 하고 있기 때문이다.
+한 캐릭터의 모션을 다른 캐릭터에 맞게 변환하는 것이다. Humanoid policy를 그대로 Atlas에 적용하니 거의 아무것도 하지 못했다. 그러나 humanoid 기준 모션의 local joint rotation을 거의 그대로 Atlas에 복사하고, Atlas 전용 정책을 새로 학습하면 걷기, 달리기, 백플립, 스핀킥이 다시 나온다. 이 말은 retargeting 자체는 대충 geometry만 맞추되, 여기서 atlas 전용 policy를 다시 학습한다는 것이다. DeepMimic은 "정책 자체가 morphology-invariant"하다는 주장이 아니라, "<font color="#ffc000">같은 reference motion style을 다른 morphology의 물리 모델에도 다시 학습시킬 수 있다</font>"는 주장을 하고 있기 때문이다.
 
 **\[environment retargeting\]**
 ![[Pasted image 20260409230817.png|500]]
@@ -288,5 +287,6 @@ supplementary의 알고리즘 1은 DeepMimic 전체 학습 루프를 요약한�
 
 DeepMimic을 한 줄로 정의하면, "reference motion을 물리적으로 실행 가능한 skill prior로 바꾸는 강화학습 프레임워크"다. 모션 캡처는 스타일을 준다. 물리 엔진은 현실성을 준다. imitation reward는 그 스타일을 잃지 않게 붙잡아 둔다. task reward는 목표 지향성을 넣는다. PPO는 이를 최적화한다. RSI와 ET는 고난도 동작도 실제로 배우게 만든다. 그리고 value function은 나중에 멀티스킬 전환의 판단 기준으로까지 쓰인다.
 
-따라서 DeepMimic을 제대로 이해했다는 것은 단순히 "모션 캡처를 imitation reward로 넣은 PPO"라고 말하는 수준이 아니다. 정말 중요한 이해는 다음과 같다. DeepMimic은 보상 설계, 행동 공간 설계, 상태 표현, 에피소드 시작 분포, 실패 종료 규칙, value 활용 방식이 서로 맞물려 돌아가는 시스템이다. 이 중 하나만 떼어 보면 평범해 보일 수 있지만, 이 조합이 2018년 기준으로는 매우 강력했고, 이후 physics-based humanoid control 연구의 기본 문법이 되었다.>)
+따라서 DeepMimic을 제대로 이해했다는 것은 단순히 "모션 캡처를 imitation reward로 넣은 PPO"라고 말하는 수준이 아니다. 정말 중요한 이해는 다음과 같다. DeepMimic은 보상 설계, 행동 공간 설계, 상태 표현, 에피소드 시작 분포, 실패 종료 규칙, value 활용 방식이 서로 맞물려 돌아가는 시스템이다. 이 중 하나만 떼어 보면 평범해 보일 수 있지만, 이 조합이 2018년 기준으로는 매우 강력했고, 이후 physics-based humanoid control 연구의 기본 문법이 되었다.
 
+ㄴ
