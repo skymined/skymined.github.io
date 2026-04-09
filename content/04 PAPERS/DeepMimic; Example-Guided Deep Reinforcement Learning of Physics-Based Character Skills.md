@@ -166,6 +166,7 @@ $$\Pi(a \mid s) = \sum_{i=1}^{k} p^{i}(s)\,\pi^{i}(a \mid s)$$
 
 $$p^{i}(s) = \frac{\exp\left( V^{i}(s) / \mathcal{T} \right)}  
 {\sum_{j=1}^{k} \exp\left( V^{j}(s) / \mathcal{T} \right)}$$
+
 해당 식은 value들을 확률로 바꾸는 공식으로 value가 높을 수록 확률이 커진다. 
 보통 멀티 스킬을 학습시킬 때는 하나의 큰 policy를 학습하거나 skill selector를 학습하는데, composite policy는 이미 있는 skill policy들을 그냥 조합하기 때문에 재학습이 덜 필요하고 skill 라이브러리를 만들 수 있으며 새로운 skill 하나를 추가하면 전체를 다시 학습하지 않고 붙일 수가 있다는 장점이 있다.
 
@@ -288,5 +289,3 @@ supplementary의 알고리즘 1은 DeepMimic 전체 학습 루프를 요약한�
 DeepMimic을 한 줄로 정의하면, "reference motion을 물리적으로 실행 가능한 skill prior로 바꾸는 강화학습 프레임워크"다. 모션 캡처는 스타일을 준다. 물리 엔진은 현실성을 준다. imitation reward는 그 스타일을 잃지 않게 붙잡아 둔다. task reward는 목표 지향성을 넣는다. PPO는 이를 최적화한다. RSI와 ET는 고난도 동작도 실제로 배우게 만든다. 그리고 value function은 나중에 멀티스킬 전환의 판단 기준으로까지 쓰인다.
 
 따라서 DeepMimic을 제대로 이해했다는 것은 단순히 "모션 캡처를 imitation reward로 넣은 PPO"라고 말하는 수준이 아니다. 정말 중요한 이해는 다음과 같다. DeepMimic은 보상 설계, 행동 공간 설계, 상태 표현, 에피소드 시작 분포, 실패 종료 규칙, value 활용 방식이 서로 맞물려 돌아가는 시스템이다. 이 중 하나만 떼어 보면 평범해 보일 수 있지만, 이 조합이 2018년 기준으로는 매우 강력했고, 이후 physics-based humanoid control 연구의 기본 문법이 되었다.
-
-ㄴ
