@@ -19,8 +19,7 @@ DeepMimic의 핵심은 아주 간단하게 말하면 "<font color="#ffc000">**�
 > DeepMimic은 skill을 스스로 만들어내거나 조합(선택)하는 것이 아니라 이미 주어진 skill/reference motion을 물리적으로 그럴듯하고 강건하게 실행하게 하는 것이 목적임.
 
 ## 1. Introduction
-
-서론에서 저자들은 물리 기반 캐릭터 애니메이션의 오랜 목표를 아주 명확하게 잡는다. 현실적인 물리 반응을 하면서도, 모션 캡처나 애니메이터가 만든 고품질 움직임의 스타일을 그대로 유지하고 싶다는 것이다. 기존의 키네마틱 기반 애니메이션은 모션 품질이 매우 좋지만, 외부 힘이나 환경 변화에 대한 반응이 약하다. 반대로 순수 강화학습 기반 제어는 일반성은 높지만 움직임이 어색해지기 쉽다. 논문이 겨냥하는 문제는 바로 이 둘의 간극이다.
+현실적인 물리 반응을 하면서도, 모션 캡처나 애니메이터가 만든 고품질 움직임의 스타일을 그대로 유지하는 것이 이 논문의 목적이다. 기존의 키네마틱 기반 애니메이션은 모션 품질이 매우 좋지만, 외부 힘이나 환경 변화에 대한 반응이 약하다. 반대로 순수 강화학습 기반 제어는 일반성은 높지만 움직임이 어색해지기 쉽다. 논문이 겨냥하는 문제는 바로 이 둘의 간극이다.
 
 저자들이 제시하는 아이디어는 복잡한 제어 구조를 새로 만드는 것이 아니라, 강화학습 보상 안에 "기준 모션과 닮을수록 보상을 준다"는 항을 직접 넣는 것이다. 그리고 여기에 목표 달성 보상을 추가한다. 이 접근은 겉으로 보면 단순하지만, 실제로는 중요한 전환점이다. 기존 많은 시스템은 키네마틱 모션 생성기 위에 물리 추적 컨트롤러를 얹는 식이었다. 그런데 이런 구조는 "추적 가능한 모션"을 먼저 만들어야 하고, 정책이 상황에 따라 모션을 과감하게 바꾸기도 어렵다. DeepMimic은 아예 정책이 직접 물리 세계 안에서 움직이며 기준 모션을 닮도록 학습하게 만든다.
 
@@ -235,65 +234,55 @@ spinkick strike 태스크에서 imitation과 task를 함께 쓴 정책은 99% �
 ![[Pasted image 20260409222831.png|]]
 multi-clip reward로 걷기와 회전 클립 다섯 개를 함께 넣고 목표 heading을 따라가게 하면, heading이 바뀔 때 turning clip들이 활성화되고, 다시 정렬되면 forward walk가 주로 선택된다. 이 결과는 max-over-clips reward가 실제로 상황에 따라 다른 reference를 활용하도록 정책을 이끈다는 증거다.
 
-skill selector에서는 flip 묶음과 jump 묶음을 하나의 정책 안에서 배우고, one-hot 입력으로 임의 순서의 기술을 실시간으로 실행할 수 있음을 보인다. composite policy에서는 backflip, frontflip, sideflip, cartwheel, spinkick, roll, 그리고 get-up 정책들을 따로 학습한 뒤 value 기반으로 합친다. 여기서 특히 중요한 장면은 캐릭터가 넘어지면 별도의 스크립트 없이 적절한 get-up 정책이 선택된다는 점이다. 즉 value function이 "이 상태에서 어떤 기술로 이어가야 살아남는가"를 판단하는 스위치로 작동한다.
+**\[skill selector\]**
+flip 묶음과 jump 묶음을 하나의 정책 안에서 배우고, one-hot 입력으로 임의 순서의 기술을 실시간으로 실행할 수 있음을 보인다. 정량적 평가는 아무래도 없는 모양이다.
+
+**\[composite policy\]**
+backflip, frontflip, sideflip, cartwheel, spinkick, roll, 그리고 get-up 정책들을 따로 학습한 뒤 value 기반으로 합친다. 여기서 특히 중요한 장면은 캐릭터가 넘어지면 별도의 스크립트 없이 적절한 get-up 정책이 선택된다는 점이다. 즉 value function이 "이 상태에서 어떤 기술로 이어가야 살아남는가"를 판단하는 스위치로 작동한다.
 
 ### 10.3 Retargeting
+**\[character retargeting\]**
+한 캐릭터의 모션을 다른 캐릭터에 맞게 변환하는 것이다. Humanoid policy를 그대로 Atlas에 적용하니 거의 아무것도 하지 못했다. 그러나 humanoid 기준 모션의 local joint rotation을 거의 그대로 Atlas에 복사하고, Atlas 전용 정책을 새로 학습하면 걷기, 달리기, 백플립, 스핀킥이 다시 나온다. 이 말은 retargeting 자체는 대충 geometry만 맞추되, 여기서 atlas 전용 policy를 다시 학습한다는 것이다. DeepMimic은 "정책 자체가 morphology-invariant"하다는 주장이 아니라, "같은 reference motion style을 다른 morphology의 물리 모델에도 다시 학습시킬 수 있다"는 주장을 하고 있기 때문이다.
 
-retargeting 실험은 DeepMimic의 일반성을 강하게 뒷받침한다. 첫째는 character retargeting이다. humanoid 기준 모션의 local joint rotation을 거의 그대로 Atlas에 복사하고, Atlas 전용 정책을 새로 학습하면 걷기, 달리기, 백플립, 스핀킥이 다시 나온다. 반대로 humanoid에서 학습한 정책을 Atlas에 그대로 적용하면 거의 아무 것도 되지 않는다. 이 비교는 아주 중요하다. DeepMimic은 "정책 자체가 morphology-invariant"하다는 주장이 아니라, "같은 reference motion style을 다른 morphology의 물리 모델에도 다시 학습시킬 수 있다"는 주장이다.
+**\[environment retargeting\]**
+![[Pasted image 20260409230817.png|500]]
+\<왼쪽은 original landing motion on flat terrain. 오른쪽은 policy trained to imitating landing motion while jumping down form a 2m ledge\>
 
-둘째는 environment retargeting이다. 평지 착지 모션을 기준으로 삼았는데, 실제 학습은 2m 높이의 ledge에서 내려오게 할 수 있다. 또 단일 달리기 클립으로 장애물, 연속 gap, winding balance beam, irregular stairs를 통과하는 정책을 만들 수 있다. 이는 reference motion이 환경과 완전히 같아야 한다는 뜻이 아니라, 기준 스타일을 주는 seed로 작동하고 정책이 환경에 맞게 변형할 수 있음을 의미한다.
+평지 착지 모션을 기준으로 삼았는데, 실제 학습은 2m 높이의 ledge에서 내려오게 할 수 있다. 또 단일 달리기 클립으로 장애물, 연속 gap, winding balance beam, irregular stairs를 통과하는 정책을 만들 수 있다. 이는 reference motion이 환경과 완전히 같아야 한다는 뜻이 아니라, 기준 스타일을 주는 seed로 작동하고 정책이 환경에 맞게 변형할 수 있음을 의미한다.
 
-셋째는 physics retargeting이다. 논문은 moon gravity에서도 spinkick과 cartwheel을 학습시킨다. 중력장이 달라져도 모션 스타일을 어느 정도 유지하며 적응할 수 있다는 뜻이다. 이는 DeepMimic이 단순 playback이 아니라, 실제 동역학 아래에서 동작을 다시 조직하는 policy learning이라는 점을 잘 보여준다.
+**\[physics retargeting\]**
+논문은 moon gravity에서도 spinkick과 cartwheel을 학습시킨다. 중력장이 달라져도 모션 스타일을 어느 정도 유지하며 적응할 수 있다는 뜻이다. 이는 DeepMimic이 단순 playback이 아니라, 실제 동역학 아래에서 동작을 다시 조직하는 policy learning이라는 점을 잘 보여준다.
 
 ### 10.4 Ablations
+![[Pasted image 20260409231003.png|600]]
+저자들은 RSI와 ET를 빼면 무슨 일이 일어나는지를 정량적으로 비교한다. 위 그래프에서 early termination은 많은 기술에서 결정적이고, RSI는 특히 공중 체공 구간이 긴 기술에서 결정적이다.
+![[Pasted image 20260409231029.png|500]]
+위의 표를 보면 backflip의 정규화 return은 full method(RSI+ET)에서 0.791인데, RSI를 빼면 0.379까지 떨어진다. sideflip도 0.823에서 0.355로 크게 감소한다. 반면 walk는 0.980에서 0.974 정도로 큰 차이가 없다. 이 비교가 중요한 이유는, RSI와 ET의 효과가 쉬운 locomotion보다 고난도 acrobatics에서 훨씬 크다는 것을 보여주기 때문이다. 즉 DeepMimic의 성공은 보상 함수 하나로 설명되지 않는다. 학습 과정의 curriculum-like shaping, 특히 어디서 시작하고 언제 실패로 판정할지의 설계가 핵심이다.
 
-이 논문에서 반드시 봐야 하는 실험이다. 저자들은 RSI와 ET를 빼면 무슨 일이 일어나는지를 정량적으로 비교한다. 결론은 매우 분명하다. early termination은 많은 기술에서 결정적이고, RSI는 특히 공중 체공 구간이 긴 기술에서 결정적이다.
-
-표 5를 보면 backflip의 정규화 return은 full method(RSI+ET)에서 0.791인데, RSI를 빼면 0.379까지 떨어진다. sideflip도 0.823에서 0.355로 크게 감소한다. 반면 walk는 0.980에서 0.974 정도로 큰 차이가 없다. 이 비교가 중요한 이유는, RSI와 ET의 효과가 쉬운 locomotion보다 고난도 acrobatics에서 훨씬 크다는 것을 보여주기 때문이다. 즉 DeepMimic의 성공은 보상 함수 하나로 설명되지 않는다. 학습 과정의 curriculum-like shaping, 특히 어디서 시작하고 언제 실패로 판정할지의 설계가 핵심이다.
-
-저자들이 지적하듯, RSI 없이 backflip을 학습시키면 return 수치만 얼핏 비슷해 보여도 실제 동작을 보면 제대로 공중 회전을 하지 못하고 뒤로 짧게 홉만 뛰는 식의 실패가 나온다. 이 대목은 정량 지표만 보면 놓치기 쉽다. DeepMimic에서는 motion quality 평가가 반드시 정성 검토와 함께 가야 한다.
+저자들이 지적하듯, RSI 없이 backflip을 학습시키면 return 수치만 얼핏 비슷해 보여도 실제 동작을 보면 제대로 공중 회전을 하지 못하고 뒤로 짧게 홉만 뛰는 식의 실패가 나온다. 이 지점은 정량 평가만 봐서는 알기 힘들기에 DeepMimic에서는 motion quality 평가가 반드시 정성 검토와 함께 가야 한다.
 
 ### 10.5 Robustness
-
-강건성 평가는 학습된 정책에 외부 힘을 가해 어디까지 버티는지 본다. 골반에 0.2초 동안 힘을 가하고, 넘어진다면 그 직전 크기를 최대 허용치로 기록한다. humanoid run은 전방 720N × 0.2s까지, spinkick은 전방 690N × 0.2s와 측면 600N × 0.2s까지 버틴다. 이는 당시 SAMCON과 비슷하거나 더 나은 수준이라고 저자들은 말한다.
+강건성 평가는 학습된 정책에 외부 힘을 가해 어디까지 버티는지 본다.
+![[Pasted image 20260409231118.png|500]]
+골반에 0.2초 동안 힘을 가하고, 넘어진다면 그 직전 크기를 최대 허용치로 기록한다. humanoid run은 전방 720N × 0.2s까지, spinkick은 전방 690N × 0.2s와 측면 600N × 0.2s까지 버틴다. 이는 당시 SAMCON과 비슷하거나 더 나은 수준이라고 저자들은 말한다.
 
 특히 흥미로운 점은 이런 외란을 학습 중에 명시적으로 주지 않았다는 것이다. 저자들은 stochastic policy의 exploration noise가 결과적으로 강건성에 기여했을 것이라고 추정한다. 이건 DeepMimic을 로봇 쪽으로 읽을 때 중요한 힌트다. 모든 강건성을 domain randomization이나 disturbance training으로 직접 주입하지 않아도, 적절한 stochastic training과 imitation objective의 결합만으로 상당한 회복 능력이 생길 수 있다는 뜻이다.
 
 ## 11. Discussion and Limitations
+한계는 다음과 같다.
 
-논문은 결과를 과장하지 않고 한계를 솔직하게 적는다. 첫째, phase variable이 기준 모션과 선형 동기화되어 있으므로, 동작의 타이밍을 늘이거나 줄이는 적응이 어렵다. 외란을 받았을 때 자연스럽게 템포를 늦췄다가 다시 맞추는 식의 유연성이 제한된다. 이 한계는 이후 phase-functioned network나 latent timing control, adversarial motion prior 계열 연구들이 다루게 되는 지점과도 연결된다.
+1. phase variable이 기준 모션과 선형 동기화되어 있으므로, 동작의 타이밍을 늘이거나 줄이는 적응이 어렵다. 외란을 받았을 때 자연스럽게 템포를 늦췄다가 다시 맞추는 식의 유연성이 제한된다. 이 한계는 이후 phase-functioned network나 latent timing control, adversarial motion prior 계열 연구들이 다루게 되는 지점과도 연결된다.
+2. multi-clip integration은 소수의 클립에는 잘 동작하지만, 대규모 모션 라이브러리까지 확장되었다고 말하기는 어렵다. 실제로 완전히 다른 종류의 clip이 있을 경우 한쪽으로 몰리는 경향이 있었다.
+3. 저수준 PD controller의 gain과 torque limit은 여전히 사람이 적절히 잡아 줘야 한다.
+4. 학습 비용이 크다. supplementary에 따르면 humanoid 단일 스킬 하나를 학습하는 데 대략 6천만 샘플, 8코어 CPU 기준 약 2일이 걸린다.
+5.  imitation reward는 결국 손으로 설계한 유사도이며, imitation과 task의 상대 가중치도 신중하게 맞춰야 한다.
 
-둘째, multi-clip integration은 소수의 클립에는 잘 동작하지만, 대규모 모션 라이브러리까지 확장되었다고 말하기는 어렵다. 셋째, 저수준 PD controller의 gain과 torque limit은 여전히 사람이 적절히 잡아 줘야 한다. 넷째, 학습 비용이 크다. supplementary에 따르면 humanoid 단일 스킬 하나를 학습하는 데 대략 6천만 샘플, 8코어 CPU 기준 약 2일이 걸린다. 다섯째, imitation reward는 결국 손으로 설계한 유사도이며, imitation과 task의 상대 가중치도 신중하게 맞춰야 한다.
+그럼에도 DeepMimic의 의의는 매우 크다. 이 논문은 <font color="#ffc000">"모션 품질은 데이터에서, 적응성과 강건성은 물리 기반 강화학습에서" 가져오는 조합이 실제로 통한다는 것</font>을 보여줬다. 그리고 이후 등장한 AMP, adversarial motion prior, motion diffusion prior, humanoid control, sim-to-real locomotion 연구들의 출발점 중 하나가 된다.
 
-그럼에도 DeepMimic의 의의는 매우 크다. 이 논문은 "모션 품질은 데이터에서, 적응성과 강건성은 물리 기반 강화학습에서" 가져오는 조합이 실제로 통한다는 것을 보여줬다. 그리고 이후 등장한 AMP, adversarial motion prior, motion diffusion prior, humanoid control, sim-to-real locomotion 연구들의 출발점 중 하나가 된다.
+## Supplementary Material - Algorithm
 
-## Supplementary Material
-
-supplementary는 본문에서 당연하게 넘어간 RL 세부사항을 보강한다. DeepMimic을 재현하거나 변형하려면 이 부분도 같이 이해하는 편이 좋다.
-
-### A. Multi-Step Returns
-
-Monte Carlo return은 unbiased하지만 분산이 크고, 1-step return은 분산이 작지만 bias가 생긴다. n-step return과 \(\lambda\)-return은 이 둘 사이의 절충이다. DeepMimic은 value 업데이트에 TD(\(\lambda\))를 쓰고, advantage 추정에는 GAE(\(\lambda\))를 쓴다. 직관적으로는 "너무 먼 미래까지 그대로 믿지도 않고, 한 스텝 bootstrap만 고집하지도 않는" 절충형 추정기다. 동작 제어처럼 장기 구조가 중요하지만 샘플 분산이 큰 문제에서는 이 선택이 매우 합리적이다.
-
-### B. Off-Policy Learning
-
-PPO는 완전한 off-policy 알고리즘은 아니지만, 이전 정책 \(\pi_{\theta_{\text{old}}}\)에서 모은 샘플을 importance sampling으로 재사용한다. 비율
-
-\[
-w_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}
-\]
-
-은 현재 정책이 옛 정책에 비해 해당 행동에 얼마나 더 큰 확률을 주는지를 나타낸다. 이 비율 덕분에 한 번 모은 rollout으로 여러 update step을 수행할 수 있어 샘플 효율이 올라간다.
-
-### C. Proximal Policy Optimization
-
-PPO의 핵심은 정책이 한 번의 업데이트에서 너무 멀리 바뀌지 않게 하는 것이다. TRPO가 KL 제약으로 trust region을 만들었다면, PPO는 likelihood ratio를 \([1-\epsilon, 1+\epsilon]\) 범위로 clip하는 더 단순한 surrogate objective를 사용한다. DeepMimic은 이 clipped PPO를 사용한다. 의미는 간단하다. 현재 action이 좋아 보인다고 해도, 그 action의 확률을 한 번에 과도하게 올리면 학습이 불안정해진다. PPO는 이런 폭주를 막아 준다. DeepMimic처럼 고차원 연속 제어에서 정책이 자주 무너질 수 있는 환경에서는 이 안정성이 매우 중요하다.
-
-### D. Learning Algorithm and Hyperparameters
-
-supplementary의 알고리즘 1은 DeepMimic 전체 학습 루프를 요약한다. reference motion에서 초기 상태를 샘플링해 캐릭터를 초기화하고, 4096개 샘플을 모은 뒤, 크기 256의 minibatch로 policy와 value를 업데이트한다. \(\gamma = 0.95\), \(\lambda = 0.95\), PPO clipping threshold는 \(\epsilon = 0.2\)다. value step size는 \(10^{-2}\), policy step size는 humanoid와 Atlas에서 \(5 \times 10^{-5}\), dragon과 T-Rex에서 \(2 \times 10^{-5}\)를 쓴다. optimizer update는 momentum 0.9의 SGD로 수행한다.
-
-이 세부 설정은 재현성 측면에서 중요하다. DeepMimic은 최신 기준으로 보면 엄청나게 큰 네트워크나 복잡한 optimizer를 쓰지 않는다. 오히려 적당히 단순한 네트워크, 명확한 reward, 신중한 episode design, 그리고 PPO 하이퍼파라미터 세팅으로 성능을 만든다. 동시에 학습량은 결코 작지 않다. 단일 스킬에도 수천만 샘플이 필요하고, GPU가 아니라 CPU 기반으로 며칠이 걸렸다는 점을 보면, 이 논문이 "쉽게 되는 트릭"을 말하는 것은 아니라는 점도 분명하다.
+![[Pasted image 20260409231358.png]]
+supplementary의 알고리즘 1은 DeepMimic 전체 학습 루프를 요약한다. reference motion에서 초기 상태를 샘플링해 캐릭터를 초기화하고, 4096개 샘플을 모은 뒤, 크기 256의 minibatch로 policy와 value를 업데이트한다. $\gamma = 0.95$, $\lambda = 0.95$, PPO clipping threshold는 $\epsilon = 0.2$다. value step size는 $10^{-2}$, policy step size는 humanoid와 Atlas에서 $5 \times 10^{-5}$, dragon과 T-Rex에서 $2 \times 10^{-5}$를 쓴다. optimizer update는 momentum 0.9의 SGD로 수행한다.
 
 ## 결국 DeepMimic이 남긴 것
 
