@@ -137,16 +137,40 @@ DeepMimic을 재현하거나 확장할 때 많은 사람이 보상식에만 집�
 하나의 모션만 잘 따라 하는 정책은 인상적이지만, **실제 캐릭터 제어에서 더 중요한 것은 여러 기술을 연결하고 상황에 따라 선택하는 능력**이다. DeepMimic은 이를 위해 세 가지 방식을 제안한다.
 
 **첫 번째는 multi-clip reward**다. 여러 reference clip 각각에 대해 imitation reward를 계산하고, 그 순간 가장 큰 값을 주는 clip의 reward를 사용한다. 
+
 $$
 r_t^I = \max_{j=1, ..., k} r_t^j
 $$
 이 방식은 비슷한 계열의 동작들을 묶을 때 유용하다. 예를 들어 직진 걷기와 여러 종류의 회전 걷기 클립을 함께 넣어 두면, 정책은 현재 상황에서 가장 잘 맞는 걸음 패턴을 스스로 고른다. 중요한 것은 별도의 kinematic planner 없이도 clip 전환이 일어난다는 점이다. 다만 논문 결과를 보면 이 방법은 서로 비슷한 기술끼리 묶을 때 잘 되고, frontflip과 sideflip처럼 성격이 다른 기술을 한데 넣으면 일부 클립만 모방하는 문제가 생길 수 있다.
 
+> [!question] multi-clip의 경우 지금 직진해야 하는데 뒤돌고, 그것에 맞는 reward를 가지고 올 수 있는 거 아닌가?
+> $$r_t = \omega_I r_t^I + \omega_G r_t^G$$
+> 맞다. 그래서 전체 보상에는 task 목표 관련 reward가 있는 것이고, 최종적으로는 목표에 맞는 행동을 하게 된다.
+
 **두 번째는 skill selector**다. goal 입력을 one-hot vector로 두고, 어떤 skill을 지금 실행할지 사용자가 지정하게 한다. 학습 중에는 매 cycle 시작 때 무작위 skill을 고르게 해서, 정책이 여러 기술과 그 사이 전환을 함께 배우게 만든다. 이 방식은 하나의 네트워크 안에 여러 기술을 넣되, 사용자가 명시적으로 "지금은 이 동작"을 고르길 원할 때 적합하다.
 
-세 번째는 composite policy다. 이는 개인적으로 DeepMimic에서 가장 인상적인 아이디어 중 하나다. 여러 단일-skill 정책을 각각 따로 학습해 두고, 실행 시점에 각 정책의 value function을 보고 지금 상태에서 어떤 정책이 가장 유망한지를 정한다. 구체적으로는 각 정책의 value에 대해 softmax, 즉 Boltzmann 분포를 만들고, 그 확률로 sub-policy를 선택한다. 값이 높은 정책은 "지금 이 상태에서 내가 이어받아도 잘할 수 있다"는 뜻이므로 더 자주 선택된다. 이 방식의 장점은 새로운 조합을 만들기 위해 매번 멀티스킬 정책을 다시 학습하지 않아도 된다는 것이다. 논문은 넘어진 후 get-up policy가 자동으로 선택되는 사례를 보여주는데, 이건 사실상 value가 transition feasibility estimator로 쓰인다는 뜻이다.
+**세 번째는 composite policy**다. 
+![[Pasted image 20260409183436.png]]
+여러 단일-skill 정책을 각각 따로 학습해 두고, 실행 시점에 각 정책의 value function을 보고 지금 상태에서 어떤 정책이 가장 유망한지를 정한다. 지금 이 순간 어떤 정책을 실행해야 하는지를 정하는 것이다.
+$$\Pi(a \mid s) = \sum_{i=1}^{k} p^{i}(s)\,\pi^{i}(a \mid s)$$
+이것이 최종 composite policy로, 지금 상태에서 각 sub-policy를 value 기반으로 섞은 policy다. 현재 상태에서 각 skill의 value를 보고, softmax로 선택 확률을 만든 다음 그 확률로 skill을 하나 뽑으면 뽑힌 skill의 policy가 행동을 내는 것으로 value-based skill selection이다.
+여기서 중요한 점은 value function이 "이 상태에서 내가 이어받을 수 있는가?"라는 점이다. 예를 들어 바닥에 엎드려 있는 상황이면 발차기 하는 skill 보다는 몸을 일으키는 스킬의 value가 더 높을 수 있으며 이를 통해 policy가 현재 상태를 자기 기술의 시작점/진행점으로 받아들일 수 있는지를 나타낸다. (=transition feasibility estimator) 논문은 넘어진 후 get-up policy가 자동으로 선택되는 사례를 보여주는데, 이건 사실상 value가 transition feasibility estimator로 쓰인다는 뜻이다.
+
+> training a policy to perform multiple diverse skills that can be triggered by the user; and sequencing multiple single-clip policies by using their value functions to estimate the feasibility of transitions
+
+$$p^{i}(s) = \frac{\exp\left( V^{i}(s) / \mathcal{T} \right)}  
+{\sum_{j=1}^{k} \exp\left( V^{j}(s) / \mathcal{T} \right)}$$
+해당 식은 value들을 확률로 바꾸는 공식으로 value가 높을 수록 확률이 커진다. 
+보통 멀티 스킬을 학습시킬 때는 하나의 큰 policy를 학습하거나 skill selector를 학습하는데, composite policy는 이미 있는 skill policy들을 그냥 조합하기 때문에 재학습이 덜 필요하고 skill 라이브러리를 만들 수 있으며 새로운 skill 하나를 추가하면 전체를 다시 학습하지 않고 붙일 수가 있다는 장점이 있다.
 
 정리하면, multi-clip reward는 비슷한 스타일의 연속체를 하나로 묶는 데 좋고, skill selector는 사용자 명령형 인터페이스에 좋고, composite policy는 이미 학습된 다양한 기술을 라이브러리처럼 조합하는 데 좋다. DeepMimic은 멀티스킬 문제를 하나의 정답으로 밀지 않고, 상황별 도구 상자를 제시한다.
+
+> [!note] skill selector vs composite policy
+> - skill selector: 사용자/외부 명령이 skill을 정하면 policy는 그 명령을 실행하는 것
+> - composite policy: 현재 상태와 value를 보고 시스템이 알아서 skill을 정하는 것
+> - 그럼 왜 skill selector가 필요할까?
+> 	- composite policy는 지금 가장 이어가기 쉬운 skill을 고른다. 자동성은 좋지만 명령성이 약하다.
+> 	- skill selector는 외부에서 준 command이며 
 
 ## 8. Characters
 
