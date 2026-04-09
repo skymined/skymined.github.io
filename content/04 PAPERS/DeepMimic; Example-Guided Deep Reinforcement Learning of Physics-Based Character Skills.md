@@ -206,17 +206,20 @@ mixed obstacles, dense gaps, winding balance beam, stairs 같은 지형을 통�
 정책은 30Hz로 실행되고, 물리 시뮬레이션은 Bullet에서 1.2kHz로 돌아간다. 사람형 캐릭터는 걷기, 달리기, 춤, 크롤링, 점프, 발차기, 구르기, 백플립, 프론트플립, 스핀킥, 보울트 등 매우 다양한 기술을 학습했고, Atlas와 비인간 캐릭터에도 적용됐다.
 ![[Pasted image 20260409194327.png|500]]
 \<Performance statistics of imitation various skills\>
+왼쪽부터 Skill 이름, 클립 길이, 최종 policy를 학습하는 데 사용된 환경 샘플 수(단위 백만 개), Normalized Return이며 NR이 높을 수록 reference motion을 더 잘 따라했다는 뜻이다. 
 
-위 표를 보면 쉬운 주기 동작일수록 정규화 return이 높고, 공중 회전이나 긴 접촉을 포함하는 동작은 상대적으로 낮다. 예를 들어 humanoid walk는 0.985, run은 0.951, jump는 0.947로 높지만, frontflip은 0.485, landing은 0.590, spin은 0.664다. 이 숫자를 볼 때는 주의가 필요하다. 논문도 말하듯 normalized return의 최대값 자체가 실제로 도달 불가능한 경우가 있다. 따라서 낮은 수치가 항상 "실패"를 뜻하지는 않는다. 중요한 것은 정성적으로도 정책이 기준 모션과 유사한 동작을 안정적으로 재현했다는 점이다.
+위 표를 보면 쉬운 주기 동작(e.g. Walk)일수록 정규화 return이 높고, 공중 회전이나 긴 접촉을 포함하는 동작은 상대적으로 낮다. 예를 들어 humanoid walk는 0.985, run은 0.951, jump는 0.947로 높지만, frontflip은 0.485, landing은 0.590, spin은 0.664다. 물론 normalized return의 최대값 자체가 실제로 도달 불가능한 경우가 있다. 따라서 낮은 수치가 항상 "실패"를 뜻하지는 않는다. 중요한 것은 정성적으로도 정책이 기준 모션과 유사한 동작을 안정적으로 재현했다는 점이다.
 
 ### 10.1 Tasks
+"정말 imitation과 task를 함께 최적화하면, 스타일은 유지하면서 목표도 더 잘 달성하는가?" 
+![[Pasted image 20260409202559.png]]
+spinkick strike 태스크에서 imitation과 task를 함께 쓴 정책은 99% 성공률을 보였고, imitation만 쓴 정책은 19%에 그쳤다. baseball pitch throw에서는 둘 다 쓴 정책이 75%, imitation만 쓴 정책이 5%였다. 즉 기준 모션을 그대로 따라 하는 것만으로는 목표를 잘 달성할 수 없다. 정책은 필요할 때 기준 모션에서 벗어나야 한다.
+![[Pasted image 20260409202606.png]]
+반대로 task reward만 주고 imitation을 빼면 목표는 수행할 수 있지만 동작이 어색해진다. 공 던지기 태스크에서 정책은 공을 던지기보다 공을 손에 든 채 목표로 달려간다. 
 
-태스크 실험의 핵심 질문은 이것이다. "정말 imitation과 task를 함께 최적화하면, 스타일은 유지하면서 목표도 더 잘 달성하는가?" 표 4의 답은 그렇다. spinkick strike 태스크에서 imitation과 task를 함께 쓴 정책은 99% 성공률을 보였고, imitation만 쓴 정책은 19%에 그쳤다. baseball pitch throw에서는 둘 다 쓴 정책이 75%, imitation만 쓴 정책이 5%였다. 즉 기준 모션을 그대로 따라 하는 것만으로는 목표를 잘 달성할 수 없다. 정책은 필요할 때 기준 모션에서 벗어나야 한다.
-
-반대로 task reward만 주고 imitation을 빼면 목표는 수행할 수 있지만 동작이 어색해진다. 공 던지기 태스크에서 정책은 공을 던지기보다 공을 손에 든 채 목표로 달려간다. 이것은 DeepMimic의 가장 중요한 메시지 중 하나다. "task-only RL은 기능적이지만 보기 싫고, imitation-only는 보기 좋지만 목적성이 약하다. 둘을 함께 넣어야 비로소 usable motion이 된다."
+> task-only RL은 기능적이지만 보기 싫고, imitation-only는 보기 좋지만 목적성이 약하다. 둘을 함께 넣어야 비로소 usable motion이 된다.
 
 ### 10.2 Multi-Skill Integration
-
 멀티스킬 실험은 7장에서 제안한 세 방법이 실제로 작동하는지 보여준다. multi-clip reward로 걷기와 회전 클립 다섯 개를 함께 넣고 목표 heading을 따라가게 하면, heading이 바뀔 때 turning clip들이 활성화되고, 다시 정렬되면 forward walk가 주로 선택된다. 이 결과는 max-over-clips reward가 실제로 상황에 따라 다른 reference를 활용하도록 정책을 이끈다는 증거다.
 
 skill selector에서는 flip 묶음과 jump 묶음을 하나의 정책 안에서 배우고, one-hot 입력으로 임의 순서의 기술을 실시간으로 실행할 수 있음을 보인다. composite policy에서는 backflip, frontflip, sideflip, cartwheel, spinkick, roll, 그리고 get-up 정책들을 따로 학습한 뒤 value 기반으로 합친다. 여기서 특히 중요한 장면은 캐릭터가 넘어지면 별도의 스크립트 없이 적절한 get-up 정책이 선택된다는 점이다. 즉 value function이 "이 상태에서 어떤 기술로 이어가야 살아남는가"를 판단하는 스위치로 작동한다.
