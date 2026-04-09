@@ -26,6 +26,7 @@ import mermaidStyle from "../../components/styles/mermaid.inline.scss"
 import { FilePath, pathToRoot, slugTag, slugifyFilePath } from "../../util/path"
 import { toHast } from "mdast-util-to-hast"
 import { toHtml } from "hast-util-to-html"
+import { toString as hastToString } from "hast-util-to-string"
 import { capitalize } from "../../util/lang"
 import { PluggableList } from "unified"
 
@@ -65,6 +66,20 @@ const hasMeaningfulParagraphContent = (node: PhrasingContent) => {
   return !(node.type === "text" && node.value.trim().length === 0)
 }
 
+const inlineLabelRegex = /^\[[^\[\]]+\]$/
+
+const normalizeClassNames = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((className): className is string => typeof className === "string")
+  }
+
+  if (typeof value === "string") {
+    return [value]
+  }
+
+  return []
+}
+
 const splitParagraphsAroundImages = (node: Paragraph): Paragraph[] | null => {
   const containsImage = node.children.some((child) => child.type === "image")
   const hasMixedContent = node.children.some(
@@ -95,8 +110,7 @@ const splitParagraphsAroundImages = (node: Paragraph): Paragraph[] | null => {
       const nextChild = node.children[i + 1]
       const remainingChildren = node.children.slice(i + 2)
       const isStandaloneCaption =
-        nextChild?.type === "emphasis" &&
-        !remainingChildren.some(hasMeaningfulParagraphContent)
+        nextChild?.type === "emphasis" && !remainingChildren.some(hasMeaningfulParagraphContent)
 
       if (isStandaloneCaption) {
         imageParagraphChildren.push(nextChild)
@@ -467,19 +481,23 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
 
       plugins.push(() => {
         return (tree: Root) => {
-          visit(tree, "paragraph", (node: Paragraph, index: number | undefined, parent: Parent | undefined) => {
-            if (!parent || index === undefined) {
-              return
-            }
+          visit(
+            tree,
+            "paragraph",
+            (node: Paragraph, index: number | undefined, parent: Parent | undefined) => {
+              if (!parent || index === undefined) {
+                return
+              }
 
-            const splitParagraphs = splitParagraphsAroundImages(node)
-            if (!splitParagraphs) {
-              return
-            }
+              const splitParagraphs = splitParagraphsAroundImages(node)
+              if (!splitParagraphs) {
+                return
+              }
 
-            parent.children.splice(index, 1, ...splitParagraphs)
-            return index + splitParagraphs.length
-          })
+              parent.children.splice(index, 1, ...splitParagraphs)
+              return index + splitParagraphs.length
+            },
+          )
         }
       })
 
@@ -614,6 +632,46 @@ export const ObsidianFlavoredMarkdown: QuartzTransformerPlugin<Partial<Options>>
     },
     htmlPlugins() {
       const plugins: PluggableList = [rehypeRaw]
+
+      plugins.push(() => {
+        return (tree: HtmlRoot) => {
+          visit(tree, "element", (node: Element) => {
+            if (node.tagName !== "p") {
+              return
+            }
+
+            const firstChild = node.children[0]
+            if (!firstChild || firstChild.type !== "element" || firstChild.tagName !== "strong") {
+              return
+            }
+
+            const labelText = hastToString(firstChild).trim()
+            if (!inlineLabelRegex.test(labelText)) {
+              return
+            }
+
+            node.properties = {
+              ...node.properties,
+              className: [
+                ...new Set([
+                  ...normalizeClassNames(node.properties?.className),
+                  "inline-label-paragraph",
+                ]),
+              ],
+            }
+
+            firstChild.properties = {
+              ...firstChild.properties,
+              className: [
+                ...new Set([
+                  ...normalizeClassNames(firstChild.properties?.className),
+                  "inline-label-badge",
+                ]),
+              ],
+            }
+          })
+        }
+      })
 
       if (opts.parseBlockReferences) {
         plugins.push(() => {

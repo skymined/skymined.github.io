@@ -27,6 +27,7 @@ const normalizeStandaloneDisplayMath = (src: string) => {
   const lines = src.split(/\r?\n/)
   const normalized: string[] = []
   let activeFence: string | null = null
+  let activeDisplayMathPrefix: string | null = null
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -49,15 +50,46 @@ const normalizeStandaloneDisplayMath = (src: string) => {
       continue
     }
 
-    const displayMathMatch = line.match(/^(\s*(?:>\s*)*)\$\$(.+)\$\$\s*$/)
-    if (displayMathMatch) {
-      const prefix = displayMathMatch[1]
-      const expression = displayMathMatch[2].trim()
+    if (activeDisplayMathPrefix !== null) {
+      const closingMatch = line.match(/^(.*)\$\$\s*$/)
 
-      if (expression.length > 0) {
-        normalized.push(`${prefix}$$`, `${prefix}${expression}`, `${prefix}$$`)
+      if (closingMatch) {
+        const beforeClose = closingMatch[1]
+        if (beforeClose.trim().length > 0) {
+          normalized.push(beforeClose)
+        }
+
+        normalized.push(`${activeDisplayMathPrefix}$$`)
+        activeDisplayMathPrefix = null
         continue
       }
+
+      normalized.push(line)
+      continue
+    }
+
+    const displayMathMatch = line.match(/^(\s*(?:>\s*)*)\$\$(.*)$/)
+    if (displayMathMatch) {
+      const prefix = displayMathMatch[1]
+      const remainder = displayMathMatch[2]
+      const closingFenceIndex = remainder.lastIndexOf("$$")
+      const hasClosingFence =
+        closingFenceIndex >= 0 && remainder.slice(closingFenceIndex + 2).trim().length === 0
+
+      if (hasClosingFence) {
+        const expression = remainder.slice(0, closingFenceIndex).trim()
+        if (expression.length > 0) {
+          normalized.push(`${prefix}$$`, `${prefix}${expression}`, `${prefix}$$`)
+          continue
+        }
+      } else if (remainder.trim().length > 0) {
+        normalized.push(`${prefix}$$`, `${prefix}${remainder.trimEnd()}`)
+        activeDisplayMathPrefix = prefix
+        continue
+      }
+
+      normalized.push(line)
+      continue
     }
 
     normalized.push(line)
