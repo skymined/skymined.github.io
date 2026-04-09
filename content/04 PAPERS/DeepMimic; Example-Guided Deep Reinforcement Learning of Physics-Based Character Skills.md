@@ -138,7 +138,10 @@ DeepMimic을 재현하거나 확장할 때 많은 사람이 보상식에만 집�
 ## 7. Multi-Skill Integration
 하나의 모션만 잘 따라 하는 정책은 인상적이지만, **실제 캐릭터 제어에서 더 중요한 것은 여러 기술을 연결하고 상황에 따라 선택하는 능력**이다. DeepMimic은 이를 위해 세 가지 방식을 제안한다.
 
-**첫 번째는 multi-clip reward**다. 여러 reference clip 각각에 대해 imitation reward를 계산하고, 그 순간 가장 큰 값을 주는 clip의 reward를 사용한다. 
+> [!important] 세 가지 방식은 각기 다른 설계안!
+
+**\[multi-clip reward\]**
+여러 reference clip 각각에 대해 imitation reward를 계산하고, 그 순간 가장 큰 값을 주는 clip의 reward를 사용한다. 
 
 $$
 r_t^I = \max_{j=1, ..., k} r_t^j
@@ -149,11 +152,12 @@ $$
 > $$r_t = \omega_I r_t^I + \omega_G r_t^G$$
 > 맞다. 그래서 전체 보상에는 task 목표 관련 reward가 있는 것이고, 최종적으로는 목표에 맞는 행동을 하게 된다.
 
-**두 번째는 skill selector**다. goal 입력을 one-hot vector로 두고, 어떤 skill을 지금 실행할지 사용자가 지정하게 한다. 학습 중에는 매 cycle 시작 때 무작위 skill을 고르게 해서, 정책이 여러 기술과 그 사이 전환을 함께 배우게 만든다. 이 방식은 하나의 네트워크 안에 여러 기술을 넣되, 사용자가 명시적으로 "지금은 이 동작"을 고르길 원할 때 적합하다.
+**\[skill selector\]**
+goal 입력을 one-hot vector로 두고, 어떤 skill을 지금 실행할지 사용자가 지정하게 한다. 학습 중에는 매 cycle 시작 때 무작위 skill을 고르게 해서, 정책이 여러 기술과 그 사이 전환을 함께 배우게 만든다. 이 방식은 하나의 네트워크 안에 여러 기술을 넣되, 사용자가 명시적으로 "지금은 이 동작"을 고르길 원할 때 적합하다.
 
 여기서 내가 헷갈렸던 것은 skill을 사람이 직접 선택하면, policy는 대체 무얼 하는거지? 였다. 결론적으로 DeepMimic은 사용자나 데이터가 지정한 reference motion을 물리 시뮬레이션 안에서 robust하고 task-aware하게 실행하는 policy를 RL로 학습하는 것이다. <font color="#ffc000"> low-level dynamics model 자체를 배우는 게 아니라, low-level dynamics를 통과하는 control policy를 배우는 것</font>. 
 
-**세 번째는 composite policy**다. 
+**\[composite policy\]** 
 ![[Pasted image 20260409183436.png]]
 여러 단일-skill 정책을 각각 따로 학습해 두고, 실행 시점에 각 정책의 value function을 보고 지금 상태에서 어떤 정책이 가장 유망한지를 정한다. 지금 이 순간 어떤 정책을 실행해야 하는지를 정하는 것이다.
 $$\Pi(a \mid s) = \sum_{i=1}^{k} p^{i}(s)\,\pi^{i}(a \mid s)$$
@@ -172,9 +176,13 @@ $$p^{i}(s) = \frac{\exp\left( V^{i}(s) / \mathcal{T} \right)}
 > [!note] skill selector vs composite policy
 > - skill selector: 사용자/외부 명령이 skill을 정하면 policy는 그 명령을 실행하는 것
 > - composite policy: 현재 상태와 value를 보고 시스템이 알아서 skill을 정하는 것
-> - 그럼 왜 skill selector가 필요할까?
-> 	- composite policy는 지금 가장 이어가기 쉬운 skill을 고른다. 자동성은 좋지만 명령성이 약하다.
-> 	- skill selector는 외부에서 준 command이며 
+
+| 방법                | policy 수 | skill 선택 주체              | 전환 방식                                | 잘 맞는 경우                        |
+| ----------------- | -------- | ------------------------ | ------------------------------------ | ------------------------------ |
+| multi-clip reward | 1개       | 명시적 선택 없음, reward가 암묵 유도 | reward가 그 순간 best-matching clip을 밀어줌 | 비슷한 locomotion/turn variations |
+| skill selector    | 1개       | 사용자/상위 명령                | 외부 command가 cycle마다 바뀌며 전환           | 인터랙티브 제어, 명령형 사용               |
+| composite policy  | 여러 개     | 시스템(value)               | 현재 상태에서 value 높은 skill로 자동 전환        | 자동 recovery, skill library 조합  |
+
 
 ## 8. Characters
 ![[Pasted image 20260409193648.png]]
@@ -220,7 +228,12 @@ spinkick strike 태스크에서 imitation과 task를 함께 쓴 정책은 99% �
 > task-only RL은 기능적이지만 보기 싫고, imitation-only는 보기 좋지만 목적성이 약하다. 둘을 함께 넣어야 비로소 usable motion이 된다.
 
 ### 10.2 Multi-Skill Integration
-멀티스킬 실험은 7장에서 제안한 세 방법이 실제로 작동하는지 보여준다. multi-clip reward로 걷기와 회전 클립 다섯 개를 함께 넣고 목표 heading을 따라가게 하면, heading이 바뀔 때 turning clip들이 활성화되고, 다시 정렬되면 forward walk가 주로 선택된다. 이 결과는 max-over-clips reward가 실제로 상황에 따라 다른 reference를 활용하도록 정책을 이끈다는 증거다.
+> 목표 방향이 바뀔 때 정책은 여러 걷기/회전 clip 중 상황에 맞는 것을 실제로 골라서 사용하고 있는가?
+
+
+**\[Target Heading\]**
+![[Pasted image 20260409222831.png|]]
+multi-clip reward로 걷기와 회전 클립 다섯 개를 함께 넣고 목표 heading을 따라가게 하면, heading이 바뀔 때 turning clip들이 활성화되고, 다시 정렬되면 forward walk가 주로 선택된다. 이 결과는 max-over-clips reward가 실제로 상황에 따라 다른 reference를 활용하도록 정책을 이끈다는 증거다.
 
 skill selector에서는 flip 묶음과 jump 묶음을 하나의 정책 안에서 배우고, one-hot 입력으로 임의 순서의 기술을 실시간으로 실행할 수 있음을 보인다. composite policy에서는 backflip, frontflip, sideflip, cartwheel, spinkick, roll, 그리고 get-up 정책들을 따로 학습한 뒤 value 기반으로 합친다. 여기서 특히 중요한 장면은 캐릭터가 넘어지면 별도의 스크립트 없이 적절한 get-up 정책이 선택된다는 점이다. 즉 value function이 "이 상태에서 어떤 기술로 이어가야 살아남는가"를 판단하는 스위치로 작동한다.
 
