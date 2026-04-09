@@ -16,6 +16,8 @@ DeepMimic의 핵심은 아주 간단하게 말하면 "<font color="#ffc000">**�
 
 이 논문에서 정말 중요한 것은 단순히 PPO를 썼다는 사실이 아니다. DeepMimic의 실질적인 성패를 가르는 요소는 <font color="#ffc000">reference state initialization(RSI)</font>과 <font color="#ffc000">early termination(ET)</font>이다. 논문은 이 두 가지가 특히 공중 동작이나 고난도 접촉 동작을 배우는 데 결정적이라고 실험으로 보여준다. 그래서 **DeepMimic을 이해할 때는 '보상 함수'만이 아니라 '에피소드를 어떻게 시작하고 언제 끊는가'까지 포함해서 학습 문제를 설계했다는 점**을 봐야 한다.
 
+> DeepMimic은 skill을 스스로 만들어내거나 조합(선택)하는 것이 아니라 이미 주어진 skill/reference motion을 물리적으로 그럴듯하고 강건하게 실행하게 하는 것이 목적임.
+
 ## 1. Introduction
 
 서론에서 저자들은 물리 기반 캐릭터 애니메이션의 오랜 목표를 아주 명확하게 잡는다. 현실적인 물리 반응을 하면서도, 모션 캡처나 애니메이터가 만든 고품질 움직임의 스타일을 그대로 유지하고 싶다는 것이다. 기존의 키네마틱 기반 애니메이션은 모션 품질이 매우 좋지만, 외부 힘이나 환경 변화에 대한 반응이 약하다. 반대로 순수 강화학습 기반 제어는 일반성은 높지만 움직임이 어색해지기 쉽다. 논문이 겨냥하는 문제는 바로 이 둘의 간극이다.
@@ -149,6 +151,8 @@ $$
 
 **두 번째는 skill selector**다. goal 입력을 one-hot vector로 두고, 어떤 skill을 지금 실행할지 사용자가 지정하게 한다. 학습 중에는 매 cycle 시작 때 무작위 skill을 고르게 해서, 정책이 여러 기술과 그 사이 전환을 함께 배우게 만든다. 이 방식은 하나의 네트워크 안에 여러 기술을 넣되, 사용자가 명시적으로 "지금은 이 동작"을 고르길 원할 때 적합하다.
 
+여기서 내가 헷갈렸던 것은 skill을 사람이 직접 선택하면, policy는 대체 무얼 하는거지? 였다. 결론적으로 DeepMimic은 사용자나 데이터가 지정한 reference motion을 물리 시뮬레이션 안에서 robust하고 task-aware하게 실행하는 policy를 RL로 학습하는 것이다. <font color="#ffc000"> low-level dynamics model 자체를 배우는 게 아니라, low-level dynamics를 통과하는 control policy를 배우는 것</font>. 
+
 **세 번째는 composite policy**다. 
 ![[Pasted image 20260409183436.png]]
 여러 단일-skill 정책을 각각 따로 학습해 두고, 실행 시점에 각 정책의 value function을 보고 지금 상태에서 어떤 정책이 가장 유망한지를 정한다. 지금 이 순간 어떤 정책을 실행해야 하는지를 정하는 것이다.
@@ -173,30 +177,37 @@ $$p^{i}(s) = \frac{\exp\left( V^{i}(s) / \mathcal{T} \right)}
 > 	- skill selector는 외부에서 준 command이며 
 
 ## 8. Characters
-
+![[Pasted image 20260409193648.png]]
 논문은 단일 인간형 캐릭터만 다루지 않는다. humanoid, Atlas, T-Rex, dragon까지 네 종류의 캐릭터를 사용한다. 모두 articulated rigid body로 모델링되며, 대부분의 관절은 3자유도 spherical joint이고 팔꿈치와 무릎만 1자유도 revolute joint다. 각 관절에는 PD 컨트롤러가 있고, gain은 캐릭터마다 사람이 정해서 고정한다.
 
 이 파트에서 중요한 것은 "다양한 morphology"를 진짜로 다뤘다는 점이다. Atlas는 humanoid와 비슷한 구조지만 질량 분포와 actuator 특성이 크게 다르고, T-Rex와 dragon은 아예 사람 모션 캡처가 없는 비인간 캐릭터다. 논문은 이들에게 keyframed animation을 기준 모션으로 넣어서도 학습이 가능하다고 보여준다. 즉 DeepMimic은 mocap 전용 시스템이 아니라, "어떤 reference motion 표현이든 물리 정책으로 번역하는 프레임워크"에 가깝다.
+![[Pasted image 20260409193754.png|400]]
 
 또 하나 봐야 할 부분은 차원 수다. humanoid는 상태 197차원, 행동 36차원이고, dragon은 상태 418차원, 행동 94차원이다. 이는 전통적인 continuous control benchmark보다 훨씬 큰 수준이다. 그래서 DeepMimic의 성과는 단순히 "재미있는 애니메이션"이 아니라, 고차원 연속 제어를 실제로 다루는 RL 사례로도 의미가 있다.
 
 ## 9. Tasks
+DeepMimic이 단순 motion tracking을 넘어서려면, imitation 외에 추가 태스크를 넣을 수 있어야 한다. 해당 논문은 그 **goal-conditioned formulation**을 보여준다.
 
-DeepMimic이 단순 motion tracking을 넘어서려면, imitation 외에 추가 태스크를 넣을 수 있어야 한다. 이 파트는 그 goal-conditioned formulation을 보여준다.
+**\[Target heading\]**
+![[Pasted image 20260409194201.png]]
+캐릭터가 특정 수평 방향으로 움직이도록 하는 목표다. 보상은 목표 방향 성분의 속도가 원하는 속도보다 느릴 때만 패널티를 준다. 즉, 목표보다 너무 빠르다고 벌주지는 않는다. 걷거나 달리는 동작을 유지하면서 목표 방향으로 충분히 전진하게 만들고, 약간 더 빠른 것은 허용한다.
 
-첫 번째 태스크는 target heading이다. 캐릭터가 특정 수평 방향으로 움직이도록 하는 목표다. 보상은 목표 방향 성분의 속도가 원하는 속도보다 느릴 때만 패널티를 준다. 즉, 목표보다 너무 빠르다고 벌주지는 않는다. 이 설계는 자연스럽다. 걷거나 달리는 동작을 유지하면서 목표 방향으로 충분히 전진하게 만들고, 약간 더 빠른 것은 허용한다.
+**\[Strike\]**
+캐릭터의 발이나 손 같은 특정 링크로 무작위 위치의 구형 타깃을 치게 한다. 흥미로운 점은 goal 입력에 타깃 위치뿐 아니라, 이미 타깃을 쳤는지 여부를 나타내는 이진 변수 h를 넣는다는 것이다. 정책이 feedforward network라 내부 메모리가 없으니, 외부에서 최소한의 memory bit를 상태로 주는 셈이다. 
 
-두 번째는 strike다. 캐릭터의 발이나 손 같은 특정 링크로 무작위 위치의 구형 타깃을 치게 한다. 흥미로운 점은 goal 입력에 타깃 위치뿐 아니라, 이미 타깃을 쳤는지 여부를 나타내는 이진 변수 \(h\)를 넣는다는 것이다. 정책이 feedforward network라 내부 메모리가 없으니, 외부에서 최소한의 memory bit를 상태로 주는 셈이다. 이건 당시 recurrent policy를 피하면서도 필요한 상태 전이를 다루는 실용적인 선택이다.
+**\[Throw\]**
+구조는 strike와 비슷하지만, 타깃을 직접 치는 대신 공을 던져 맞혀야 한다. 그래서 상태에 공의 위치, 회전, 선속도, 각속도가 추가된다. 나중 결과 파트에서 보듯, imitation 없이 task reward만 주면 <u>정책은 공을 던지지 않고 공을 들고 목표 쪽으로 달려가는 기괴하지만 기능적인 전략을 택</u>한다. 이 사례는 DeepMimic에서 imitation reward가 왜 중요한지 아주 잘 보여준다. task reward만으로는 "성공"은 할 수 있어도 "그럴듯한 동작"은 나오지 않는다.
 
-세 번째는 throw다. 구조는 strike와 비슷하지만, 타깃을 직접 치는 대신 공을 던져 맞혀야 한다. 그래서 상태에 공의 위치, 회전, 선속도, 각속도가 추가된다. 나중 결과 파트에서 보듯, imitation 없이 task reward만 주면 정책은 공을 던지지 않고 공을 들고 목표 쪽으로 달려가는 기괴하지만 기능적인 전략을 택한다. 이 사례는 DeepMimic에서 imitation reward가 왜 중요한지 아주 잘 보여준다. task reward만으로는 "성공"은 할 수 있어도 "그럴듯한 동작"은 나오지 않는다.
-
-네 번째는 terrain traversal이다. mixed obstacles, dense gaps, winding balance beam, stairs 같은 지형을 통과해야 한다. 여기서 DeepMimic은 heightmap 기반 visuomotor policy를 사용한다. 특히 학습을 빠르게 하기 위해 먼저 flat terrain에서 일반 MLP로 기본 모션을 학습한 뒤, 그 네트워크에 heightmap과 convolution layer를 붙여 복잡한 지형으로 옮겨 간다. 이 progressive learning은 처음부터 perception-heavy setting에서 모든 것을 동시에 배우는 것보다 훨씬 실용적이다.
+**\[Terrain traversal\]**
+![[Pasted image 20260409194229.png]]
+mixed obstacles, dense gaps, winding balance beam, stairs 같은 지형을 통과해야 한다. 여기서 DeepMimic은 heightmap 기반 visuomotor policy를 사용한다. 특히 학습을 빠르게 하기 위해 먼저 flat terrain에서 일반 MLP로 기본 모션을 학습한 뒤, 그 네트워크에 heightmap과 convolution layer를 붙여 복잡한 지형으로 옮겨 간다. 이 progressive learning은 처음부터 perception-heavy setting에서 모든 것을 동시에 배우는 것보다 훨씬 실용적이다.
 
 ## 10. Results
+정책은 30Hz로 실행되고, 물리 시뮬레이션은 Bullet에서 1.2kHz로 돌아간다. 사람형 캐릭터는 걷기, 달리기, 춤, 크롤링, 점프, 발차기, 구르기, 백플립, 프론트플립, 스핀킥, 보울트 등 매우 다양한 기술을 학습했고, Atlas와 비인간 캐릭터에도 적용됐다.
+![[Pasted image 20260409194327.png|500]]
+\<Performance statistics of imitation various skills\>
 
-결과 파트는 DeepMimic이 "정말 되는가"를 다각도로 입증한다. 정책은 30Hz로 실행되고, 물리 시뮬레이션은 Bullet에서 1.2kHz로 돌아간다. 신경망은 TensorFlow로 학습했다. 사람형 캐릭터는 걷기, 달리기, 춤, 크롤링, 점프, 발차기, 구르기, 백플립, 프론트플립, 스핀킥, 보울트 등 매우 다양한 기술을 학습했고, Atlas와 비인간 캐릭터에도 적용됐다.
-
-표 2를 보면 쉬운 주기 동작일수록 정규화 return이 높고, 공중 회전이나 긴 접촉을 포함하는 동작은 상대적으로 낮다. 예를 들어 humanoid walk는 0.985, run은 0.951, jump는 0.947로 높지만, frontflip은 0.485, landing은 0.590, spin은 0.664다. 이 숫자를 볼 때는 주의가 필요하다. 논문도 말하듯 normalized return의 최대값 자체가 실제로 도달 불가능한 경우가 있다. 따라서 낮은 수치가 항상 "실패"를 뜻하지는 않는다. 중요한 것은 정성적으로도 정책이 기준 모션과 유사한 동작을 안정적으로 재현했다는 점이다.
+위 표를 보면 쉬운 주기 동작일수록 정규화 return이 높고, 공중 회전이나 긴 접촉을 포함하는 동작은 상대적으로 낮다. 예를 들어 humanoid walk는 0.985, run은 0.951, jump는 0.947로 높지만, frontflip은 0.485, landing은 0.590, spin은 0.664다. 이 숫자를 볼 때는 주의가 필요하다. 논문도 말하듯 normalized return의 최대값 자체가 실제로 도달 불가능한 경우가 있다. 따라서 낮은 수치가 항상 "실패"를 뜻하지는 않는다. 중요한 것은 정성적으로도 정책이 기준 모션과 유사한 동작을 안정적으로 재현했다는 점이다.
 
 ### 10.1 Tasks
 
