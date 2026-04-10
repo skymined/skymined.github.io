@@ -189,12 +189,26 @@ article.popover-hint p.inline-label-paragraph > strong.inline-label-badge {
   letter-spacing: 0.02em;
 }
 
-article.popover-hint blockquote {
+article.popover-hint blockquote:not(.callout) {
   margin: 0.95rem 0;
   padding: 0.78rem 0.95rem;
   border-left-color: color-mix(in srgb, var(--tertiary) 58%, var(--secondary) 42%);
   border-radius: 0 14px 14px 0;
   background: color-mix(in srgb, var(--lightgray) 76%, transparent);
+}
+
+article.popover-hint .callout {
+  margin: 0.72rem 0;
+  padding: 0 0.9rem;
+  border-radius: 14px;
+}
+
+article.popover-hint .callout > .callout-title {
+  padding: 0.62rem 0;
+}
+
+article.popover-hint .callout > .callout-content > *:last-child {
+  margin-bottom: 0.72rem;
 }
 
 article.popover-hint .katex-display {
