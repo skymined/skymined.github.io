@@ -1,5 +1,35 @@
 @use "./base.scss";
 
+@font-face {
+  font-family: "Pretendard";
+  src: url("/blog/static/fonts/Pretendard-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("/blog/static/fonts/Pretendard-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+body,
+.search > .search-container > .search-space > input,
+.popover > .popover-inner {
+  font-family:
+    "Pretendard",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    "Segoe UI",
+    "Malgun Gothic",
+    sans-serif;
+}
+
 /* Prevent viewport width quirks that cause horizontal clipping on mobile browsers. */
 html {
   width: 100%;
@@ -44,11 +74,18 @@ html {
   color: #ffffff !important;
 }
 
+:root {
+  --external-link-color: #667487;
+  --external-link-hover: #506077;
+}
+
 /* Obsidian-like heading colors for markdown levels #, ##, ### in dark mode */
 :root[saved-theme="dark"] {
   --obsidian-h1: #5384b6;
   --obsidian-h2: #66a2d8;
-  --obsidian-h3: #74b1e8;
+  --obsidian-h3: #9bd2f7;
+  --external-link-color: #adb7c9;
+  --external-link-hover: #c1cada;
 }
 
 :root[saved-theme="dark"] article.popover-hint h1 {
@@ -82,6 +119,151 @@ html {
   color: var(--secondary);
 }
 
+/* External links in article content: use gray instead of the yellow accent. */
+article a.external,
+.popover a.external {
+  color: var(--external-link-color) !important;
+}
+
+article a.external:hover,
+.popover a.external:hover {
+  color: var(--external-link-hover) !important;
+}
+
+article a.external .external-icon > path,
+.popover a.external .external-icon > path {
+  fill: var(--external-link-color) !important;
+}
+
+article .katex-display,
+.popover .katex-display {
+  display: block;
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+article.popover-hint {
+  font-size: 1.02rem;
+}
+
+article.popover-hint > p,
+article.popover-hint li,
+article.popover-hint td,
+article.popover-hint blockquote {
+  line-height: 1.72;
+}
+
+article.popover-hint > p {
+  margin: 0.85rem 0;
+}
+
+article.popover-hint :is(h1, h2, h3, h4, h5, h6) + p {
+  margin-top: 0.4rem;
+}
+
+article.popover-hint p.inline-label-paragraph {
+  margin: 1rem 0 0.45rem;
+}
+
+article.popover-hint
+  p.inline-label-paragraph:has(> strong.inline-label-badge:first-child:last-child) {
+  margin-bottom: 0.2rem;
+}
+
+article.popover-hint p.inline-label-paragraph + p {
+  margin-top: 0.3rem;
+}
+
+article.popover-hint p.inline-label-paragraph > strong.inline-label-badge {
+  display: block;
+  width: fit-content;
+  margin-bottom: 0.3rem;
+  padding: 0.24rem 0.64rem;
+  border: 1px solid color-mix(in srgb, var(--tertiary) 42%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tertiary) 14%, transparent);
+  color: var(--tertiary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+article.popover-hint blockquote:not(.callout) {
+  margin: 0.95rem 0;
+  padding: 0.78rem 0.95rem;
+  border-left-color: color-mix(in srgb, var(--tertiary) 58%, var(--secondary) 42%);
+  border-radius: 0 14px 14px 0;
+  background: color-mix(in srgb, var(--lightgray) 76%, transparent);
+}
+
+article.popover-hint .callout {
+  margin: 0.72rem 0;
+  padding: 0 0.9rem;
+  border-radius: 14px;
+}
+
+article.popover-hint .callout > .callout-title {
+  padding: 0.62rem 0;
+}
+
+article.popover-hint .callout > .callout-content > *:last-child {
+  margin-bottom: 0.72rem;
+}
+
+article.popover-hint .katex-display {
+  margin: 0.95rem 0;
+  padding: 0.72rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--gray) 72%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--lightgray) 88%, transparent),
+    color-mix(in srgb, var(--lightgray) 72%, transparent)
+  );
+}
+
+article.popover-hint .table-container {
+  margin: 1rem 0;
+  border: 1px solid color-mix(in srgb, var(--gray) 70%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--lightgray) 78%, transparent);
+}
+
+article.popover-hint .table-container > table {
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem;
+}
+
+article.popover-hint .table-container th,
+article.popover-hint .table-container td {
+  vertical-align: top;
+}
+
+/* Keep image paragraphs stacked vertically and reduce the gap below headings. */
+article p:has(> img) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.7rem 0 0.95rem;
+  max-width: 100%;
+}
+
+article p:has(> img) > img {
+  display: block;
+  margin: 0;
+}
+
+article p:has(> img) > img + em {
+  transform: none;
+}
+
+article :is(h1, h2, h3, h4, h5, h6) + p:has(> img) {
+  margin-top: 0.35rem;
+}
+
 /* Explorer spacing */
 .explorer-content .explorer-ul > li {
   margin: 0.3rem 0;
@@ -102,7 +284,13 @@ html {
 }
 
 :root[saved-theme="dark"] .explorer-content .folder-outer .folder-container div > a:hover,
-:root[saved-theme="dark"] .explorer-content .folder-outer .folder-container div > button:hover span {
+:root[saved-theme="dark"]
+  .explorer-content
+  .folder-outer
+  .folder-container
+  div
+  > button:hover
+  span {
   color: #c39400 !important;
 }
 
@@ -126,10 +314,24 @@ html {
 }
 
 /* Keep tablet layout readable by shrinking the left rail on medium screens. */
+@media all and (min-width: 1201px) {
+  .page > #quartz-body {
+    grid-template-columns: 320px minmax(0, 1fr) 320px;
+  }
+}
+
 @media all and (min-width: 801px) and (max-width: 1200px) {
   .page > #quartz-body {
     grid-template-columns: minmax(240px, 30vw) minmax(0, 1fr);
   }
+}
+
+/* Let the center column actually shrink so wide images do not intrude into the right sidebar. */
+.page > #quartz-body .center,
+.page > #quartz-body .center > article,
+.page > #quartz-body .center .page-header,
+.page > #quartz-body .center .page-footer {
+  min-width: 0;
 }
 
 /* Mobile/small-tablet hardening: avoid horizontal overflow and cramped top controls. */

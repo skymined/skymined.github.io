@@ -3,7 +3,7 @@ import { FontWeight, SatoriOptions } from "satori/wasm"
 import { GlobalConfiguration } from "../cfg"
 import { QuartzPluginData } from "../plugins/vfile"
 import { JSXInternal } from "preact/src/jsx"
-import { FontSpecification, getFontSpecificationName, ThemeKey } from "./theme"
+import { FontSpecification, ThemeKey } from "./theme"
 import path from "path"
 import { QUARTZ } from "./path"
 import { formatDate, getDate } from "../components/Date"
@@ -13,6 +13,58 @@ import { styleText } from "util"
 
 const defaultHeaderWeight = [700]
 const defaultBodyWeight = [400]
+type OgFontRole = "header" | "body"
+
+const ogFontOverrides: Partial<Record<OgFontRole, string>> = {
+  header: "Pretendard",
+  body: "Pretendard",
+}
+
+const localFontPaths: Record<string, Partial<Record<number, string>>> = {
+  Pretendard: {
+    400: path.join(QUARTZ, "static", "fonts", "Pretendard-Regular.otf"),
+    700: path.join(QUARTZ, "static", "fonts", "Pretendard-Bold.otf"),
+  },
+}
+
+function getConfiguredFontName(spec: FontSpecification): string {
+  return typeof spec === "string" ? spec : spec.name
+}
+
+function resolveOgFontName(spec: FontSpecification, role: OgFontRole): string {
+  return ogFontOverrides[role] ?? getConfiguredFontName(spec)
+}
+
+function resolveLocalFontPath(fontName: string, weight: FontWeight): string | undefined {
+  const fontWeights = localFontPaths[fontName]
+  if (!fontWeights) {
+    return
+  }
+
+  return fontWeights[weight] ?? fontWeights[weight >= 700 ? 700 : 400]
+}
+
+async function readLocalFont(
+  fontName: string,
+  weight: FontWeight,
+): Promise<Buffer<ArrayBufferLike> | undefined> {
+  const localFontPath = resolveLocalFontPath(fontName, weight)
+  if (!localFontPath) {
+    return
+  }
+
+  try {
+    return await fs.readFile(localFontPath)
+  } catch {
+    console.log(
+      styleText(
+        "yellow",
+        `\nWarning: Failed to read local font ${fontName} at ${localFontPath}`,
+      ),
+    )
+    return
+  }
+}
 
 export async function getSatoriFonts(headerFont: FontSpecification, bodyFont: FontSpecification) {
   // Get all weights for header and body fonts
@@ -25,8 +77,8 @@ export async function getSatoriFonts(headerFont: FontSpecification, bodyFont: Fo
     typeof bodyFont === "string" ? defaultBodyWeight : (bodyFont.weights ?? defaultBodyWeight)
   ) as FontWeight[]
 
-  const headerFontName = typeof headerFont === "string" ? headerFont : headerFont.name
-  const bodyFontName = typeof bodyFont === "string" ? bodyFont : bodyFont.name
+  const headerFontName = resolveOgFontName(headerFont, "header")
+  const bodyFontName = resolveOgFontName(bodyFont, "body")
 
   // Fetch fonts for all weights and convert to satori format in one go
   const headerFontPromises = headerWeights.map(async (weight) => {
@@ -75,6 +127,11 @@ export async function fetchTtf(
   rawFontName: string,
   weight: FontWeight,
 ): Promise<Buffer<ArrayBufferLike> | undefined> {
+  const localFontData = await readLocalFont(rawFontName, weight)
+  if (localFontData) {
+    return localFontData
+  }
+
   const fontName = rawFontName.replaceAll(" ", "+")
   const cacheKey = `${fontName}-${weight}`
   const cacheDir = path.join(QUARTZ, ".quartz-cache", "fonts")
@@ -195,8 +252,8 @@ export const defaultImage: SocialImageOptions["imageStructure"] = ({
 
   // Get tags if available
   const tags = fileData.frontmatter?.tags ?? []
-  const bodyFont = getFontSpecificationName(cfg.theme.typography.body)
-  const headerFont = getFontSpecificationName(cfg.theme.typography.header)
+  const bodyFont = resolveOgFontName(cfg.theme.typography.body, "body")
+  const headerFont = resolveOgFontName(cfg.theme.typography.header, "header")
 
   return (
     <div

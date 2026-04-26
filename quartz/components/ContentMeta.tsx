@@ -19,6 +19,18 @@ const defaultOptions: ContentMetaOptions = {
   showComma: true,
 }
 
+function isTruthyFrontmatterValue(value: unknown): boolean {
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    return ["true", "1", "yes", "y", "on"].includes(normalized)
+  }
+
+  return false
+}
+
 export default ((opts?: Partial<ContentMetaOptions>) => {
   // Merge options with defaults
   const options: ContentMetaOptions = { ...defaultOptions, ...opts }
@@ -40,6 +52,15 @@ export default ((opts?: Partial<ContentMetaOptions>) => {
           minutes: Math.ceil(minutes),
         })
         segments.push(<span>{displayedTime}</span>)
+      }
+
+      if (isTruthyFrontmatterValue(fileData.frontmatter?.updatePossibility)) {
+        segments.push(
+          <span class="update-possibility">
+            <span>Update Possibility</span>
+            <span class="update-possibility-dot" aria-hidden="true"></span>
+          </span>,
+        )
       }
 
       return (

@@ -40,6 +40,21 @@ function coerceToArray(input: string | string[]): string[] | undefined {
     .map((tag: string | number) => tag.toString())
 }
 
+function coerceToBoolean(input: unknown): boolean | undefined {
+  if (input === undefined || input === null) return undefined
+
+  if (typeof input === "boolean") return input
+  if (typeof input === "number") return input !== 0
+
+  if (typeof input === "string") {
+    const normalized = input.trim().toLowerCase()
+    if (["true", "1", "yes", "y", "on"].includes(normalized)) return true
+    if (["false", "0", "no", "n", "off"].includes(normalized)) return false
+  }
+
+  return undefined
+}
+
 function getAliasSlugs(aliases: string[]): FullSlug[] {
   const res: FullSlug[] = []
   for (const alias of aliases) {
@@ -117,6 +132,20 @@ export const FrontMatter: QuartzTransformerPlugin<Partial<Options>> = (userOpts)
             const published = coalesceAliases(data, ["published", "publishDate", "date"])
             if (published) data.published = published
 
+            const updatePossibility = coalesceAliases(data, [
+              "Update",
+              "update",
+              "updatePossibility",
+              "update-possibility",
+              "update_possibility",
+              "\uBCC0\uB3D9\uAC00\uB2A5\uC131",
+              "\uBCC0\uB3D9\uAC00\uB2A5\uC131 \uC788\uC74C",
+            ])
+            const coercedUpdatePossibility = coerceToBoolean(updatePossibility)
+            if (coercedUpdatePossibility !== undefined) {
+              data.updatePossibility = coercedUpdatePossibility
+            }
+
             if (socialImage) data.socialImage = socialImage
 
             // Remove duplicate slugs
@@ -152,6 +181,7 @@ declare module "vfile" {
         cssclasses: string[]
         socialImage: string
         comments: boolean | string
+        updatePossibility: boolean | string
       }>
   }
 }

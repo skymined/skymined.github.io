@@ -12,3 +12,19 @@
     }
   }
 }
+
+.update-possibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  white-space: nowrap;
+}
+
+.update-possibility-dot {
+  width: 0.58rem;
+  height: 0.58rem;
+  border-radius: 999px;
+  background: var(--secondary);
+  display: inline-block;
+  flex: 0 0 auto;
+}

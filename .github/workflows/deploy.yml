@@ -18,10 +18,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload redirect artifact
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Quartz
+        run: npx quartz build
+
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p _site/blog
+          cp -R redirect-site/. _site/
+          cp -R public/. _site/blog/
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: redirect-site
+          path: _site
 
   deploy:
     environment:
