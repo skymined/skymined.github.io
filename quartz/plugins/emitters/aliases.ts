@@ -20,7 +20,7 @@ async function* processFile(ctx: BuildCtx, file: VFile) {
       ctx,
       content: `
         <!DOCTYPE html>
-        <html lang="en-us">
+        <html lang="${ctx.cfg.configuration.locale}">
         <head>
         <title>${ogSlug}</title>
         <link rel="canonical" href="${redirUrl}">
