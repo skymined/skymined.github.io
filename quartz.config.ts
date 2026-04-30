@@ -40,15 +40,15 @@ const config: QuartzConfig = {
           textHighlight: "#fff23688",
         },
         darkMode: {
-          light: "#0B1220",        // 배경(딥 네이비)
-          lightgray: "#121A2B",    // 카드/패널 배경
-          gray: "#2A3858",         // 테두리/구분선
-          darkgray: "#D6D9E0",     // 보조 텍스트
-          dark: "#F3F5F7",         // 본문 텍스트(거의 흰색)
-          secondary: "#F6C445",    // ✅ 포인트(노랑)
-          tertiary: "#8AB4F8",     // 링크/서브 포인트(블루 계열)
-          highlight: "rgba(246, 196, 69, 0.10)",  // hover/강조 배경
-          textHighlight: "#F6C44566",             // 텍스트 형광펜
+          light: "#0B1220", // 배경(딥 네이비)
+          lightgray: "#121A2B", // 카드/패널 배경
+          gray: "#2A3858", // 테두리/구분선
+          darkgray: "#D6D9E0", // 보조 텍스트
+          dark: "#F3F5F7", // 본문 텍스트(거의 흰색)
+          secondary: "#F6C445", // ✅ 포인트(노랑)
+          tertiary: "#8AB4F8", // 링크/서브 포인트(블루 계열)
+          highlight: "rgba(246, 196, 69, 0.10)", // hover/강조 배경
+          textHighlight: "#F6C44566", // 텍스트 형광펜
         },
       },
     },
@@ -68,6 +68,7 @@ const config: QuartzConfig = {
       }),
       Plugin.ObsidianFlavoredMarkdown({ enableInHtmlEmbed: false }),
       Plugin.GitHubFlavoredMarkdown(),
+      Plugin.HardLineBreaks(),
       Plugin.TableOfContents(),
       Plugin.CrawlLinks({ markdownLinkResolution: "shortest" }),
       Plugin.Description(),

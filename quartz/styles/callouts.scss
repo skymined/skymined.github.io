@@ -113,8 +113,9 @@
   }
 
   &[data-callout="quote"] {
-    --color: var(--secondary);
-    --border: var(--lightgray);
+    --color: color-mix(in srgb, var(--darkgray) 72%, var(--gray) 28%);
+    --border: color-mix(in srgb, var(--gray) 66%, transparent);
+    --bg: color-mix(in srgb, var(--lightgray) 72%, transparent);
     --callout-icon: var(--callout-icon-quote);
   }
 
