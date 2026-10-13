@@ -260,6 +260,8 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
   var mode = null, modeName = 'ragdoll';
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  /* left edge of the hero's text column, in hero coordinates */
+  function contentLeft() { var g = clamp(W * 0.04, 16, 44); return Math.max(g, (W - 1120) / 2 + g); }
   function dist(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
   function polar(p, ang, len) { return { x: p.x + Math.sin(ang) * len, y: p.y + Math.cos(ang) * len }; }
   function line(a, b, w) { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
@@ -303,20 +305,59 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
   }
 
   /* Ragdoll: Verlet stick figure among rigid crates and the page itself (name, chips, links and the photo ring are
-     solid). Throw the figure or the crates. Once the figure settles, a pose controller stands it up on whatever is under
-     it; left alone, it sits down, climbs onto nearby things and hops back down. A crate shoved into it knocks it over. */
+     solid). Held, it keeps its shape; set down gently, it lands on its feet; thrown hard, it goes limp and gets back up.
+     Left alone it fidgets: waves, stretches, hops, dances, looks around, sits, naps, and climbs around nearby things. */
   var RAG = (function () {
     var NAMES = ['head','neck','pelvis','lE','lH','rE','rH','lK','lF','rK','rF'];
     var POSE = { head: [0,-50], neck: [0,-38], pelvis: [0,0], lE: [-9,-26], lH: [-12,-13], rE: [9,-26], rH: [12,-13], lK: [-5,16], lF: [-7,32], rK: [5,16], rF: [7,32] };
-    /* sitting poses are relative to the surface (y = 0), facing right; mirrored for the left */
+    /* poses relative to the surface (y = 0), facing right; mirrored for the left */
     var SIT = { head: [-5,-54], neck: [-4,-42], pelvis: [0,-4], lE: [4,-29], lH: [11,-17], rE: [5,-29], rH: [13,-18], lK: [11,-17], lF: [24,-3], rK: [13,-15], rF: [27,-3] };
     var SIT_EDGE = { head: [-4,-54], neck: [-3,-42], pelvis: [0,-4], lE: [-6,-28], lH: [-9,-15], rE: [2,-28], rH: [8,-16], lK: [16,-4], lF: [17,12], rK: [17,-3], rF: [19,13] };
+    var LIE = { head: [-50,-9], neck: [-38,-4], pelvis: [0,-3], lE: [-26,-12], lH: [-15,-17], rE: [-24,-3], rH: [-11,-3], lK: [14,-10], lF: [29,-3], rK: [16,-3], rF: [32,-3] };
     var GROUP = { lF: 0, rF: 0, lK: 0, rK: 0, pelvis: 1, neck: 2, head: 2, lE: 2, rE: 2, lH: 2, rH: 2 };
+    /* idle actions while standing: per-joint overrides in standing-pose coordinates (pelvis at 0,0); s = seconds in */
+    var ACTS = {
+      wave: { dur: 2.4, say: 'hi!', f: function (n, s) {
+        if (n === 'rE') return [12, -42];
+        if (n === 'rH') return [16 + Math.sin(s * 14) * 5, -57];
+      } },
+      stretch: { dur: 2.6, say: 'mmh~', f: function (n, s) {
+        var r = -Math.min(1, s * 1.6) * 3;
+        if (n === 'lE') return [-7, -53 + r]; if (n === 'lH') return [-5, -68 + r];
+        if (n === 'rE') return [7, -53 + r]; if (n === 'rH') return [5, -68 + r];
+        if (n === 'lF' || n === 'rF') return null;
+        return [POSE[n][0], POSE[n][1] + r];
+      } },
+      hop: { dur: 1.25, f: function (n, s) {
+        var lift = Math.max(0, Math.sin(s * 2.4 * Math.PI * 2)) * 14, q = POSE[n];
+        if (n === 'lK' || n === 'rK') return [q[0] + lift * 0.3, q[1] - lift * 1.2];
+        if (n === 'lF' || n === 'rF') return [q[0], q[1] - lift * 1.4];
+        if (n === 'lH' || n === 'rH') return [q[0] * 1.3, q[1] - lift * 1.6];
+        return [q[0], q[1] - lift];
+      } },
+      dance: { dur: 3.6, say: '♪', f: function (n, s) {
+        var sw = Math.sin(s * 6) * 4, bob = Math.abs(Math.sin(s * 6)) * 3, arm = Math.sin(s * 12) * 14, q = POSE[n];
+        if (n === 'lE') return [-12 + sw, -34 + bob]; if (n === 'lH') return [-15 + sw, -44 + arm + bob];
+        if (n === 'rE') return [12 + sw, -34 + bob]; if (n === 'rH') return [15 + sw, -44 - arm + bob];
+        if (n === 'head' || n === 'neck') return [q[0] + sw * 1.3, q[1] + bob];
+        if (n === 'pelvis') return [sw * 0.6, bob];
+        if (n === 'lK' || n === 'rK') return [q[0] + sw * 0.3, q[1] + bob * 0.5];
+        return null;
+      } },
+      look: { dur: 2.8, f: function (n, s) {
+        if (n === 'head') return [Math.sin(s * 2.2) * 4, -50 + Math.abs(Math.sin(s * 2.2))];
+        if (n === 'neck') return [Math.sin(s * 2.2) * 1.5, -38];
+      } },
+      scratch: { dur: 2.0, say: '?', f: function (n, s) {
+        if (n === 'rE') return [13, -40];
+        if (n === 'rH') return [8 + Math.sin(s * 24) * 1.5, -51];
+      } }
+    };
     var STICKS = BONES.concat([['head','pelvis']]);
     var P = {}, sticks = [], boxes = [], statics = [], state = 'stand', gain = 1, drag = null, held = null, grabOff = { x: 0, y: 0 }, ptr = { x: 0, y: 0 };
-    var t = 0, rest = 0, relT = 0, recT = 0, throws = 0, knocks = 0, lastUp = 0, hint = true, homeX = 0, baseY = 0;
-    var climbing = false, nextIdle = 7, lastPoke = -99, crateTouched = false, staticT = 0;
-    var sitEdge = false, face = 1, sitUntil = 0;
+    var t = 0, rest = 0, relT = 0, recT = 0, dropT = 0, throws = 0, knocks = 0, lastUp = 0, hint = true, homeX = 0, baseY = 0;
+    var climbing = false, nextIdle = 6, lastPoke = -99, crateTouched = false, staticT = 0, ptrT = -9, lastWave = -9;
+    var sitEdge = false, face = 1, poseUntil = 0, act = null, lastH = 1 / 120;
     function rad(n) { return n === 'head' ? 9 : 3; }
 
     /* page elements as static colliders, in hero coordinates */
@@ -355,6 +396,13 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       });
       return found;
     }
+    /* stand on surface `sup` ('floor', a crate/page rect, or the photo circle) near x */
+    function settleOn(sup, x, g0) {
+      state = 'recover'; gain = g0; recT = t; climbing = false; act = null;
+      if (sup === 'floor') { homeX = clamp(x, 24, W - 24); baseY = floorY; }
+      else if (sup.k === 'circle') { homeX = clamp(x, sup.cx - sup.r * 0.35, sup.cx + sup.r * 0.35); baseY = circleTop(sup, homeX); }
+      else { homeX = clamp(x, sup.x + 8, sup.x + sup.w - 8); baseY = sup.y; }
+    }
 
     function reset() {
       computeStatics();
@@ -367,11 +415,11 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         { x: cx - 19, y: floorY - 74, w: 38, h: 30, vx: 0, vy: 0 },
         { x: plx, y: floorY - 20, w: 76, h: 20, vx: 0, vy: 0, plank: true }
       ];
-      homeX = hx; baseY = floorY; held = null; drag = null;
+      homeX = hx; baseY = floorY; held = null; drag = null; act = null;
       var py = baseY - 35; P = {};
       NAMES.forEach(function (n) { var o = POSE[n]; P[n] = { x: hx + o[0], y: py + o[1], px: hx + o[0], py: py + o[1] }; });
       sticks = STICKS.map(function (s) { return { a: s[0], b: s[1], len: dist(P[s[0]], P[s[1]]) }; });
-      state = 'stand'; gain = 1; rest = 0; climbing = false; nextIdle = t + 7;
+      state = 'stand'; gain = 1; rest = 0; climbing = false; nextIdle = t + 5;
     }
     function hitJoint(x, y, within) {
       var best = null, bd = within;
@@ -444,34 +492,48 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     }
     /* push a particle out of crates and page elements; returns how far it was moved */
     function pushOut(p, r) {
-      var moved = 0;
+      var moved = 0;   // only crates count: brushing a chip or the photo while dancing is not a knock
       p.on = null;
-      function rect(b) {
+      function rect(b, crate) {
         var l = b.x - r, rr = b.x + b.w + r, tp = b.y - r, bt = b.y + b.h + r;
         if (p.x <= l || p.x >= rr || p.y <= tp || p.y >= bt) return;
         var dl = p.x - l, dr = rr - p.x, dt = p.y - tp, db = bt - p.y, m = Math.min(dl, dr, dt, db);
         if (m === dt) { p.y = tp; p.on = b; } else if (m === db) p.y = bt; else if (m === dl) p.x = l; else p.x = rr;
-        moved += m;
+        if (crate) moved += m;
       }
-      boxes.forEach(rect);
+      boxes.forEach(function (b) { rect(b, true); });
       statics.forEach(function (s) {
-        if (s.k === 'rect') { rect(s); return; }
+        if (s.k === 'rect') { rect(s, false); return; }
         var dx = p.x - s.cx, dy = p.y - s.cy, d = Math.sqrt(dx * dx + dy * dy), R = s.r + r;
         if (d >= R) return;
         if (d < 0.001) { dx = 0; dy = -1; d = 1; }
-        p.x = s.cx + dx / d * R; p.y = s.cy + dy / d * R; moved += R - d;
+        p.x = s.cx + dx / d * R; p.y = s.cy + dy / d * R;
         if (dy / d < -0.4) p.on = s;
       });
       return moved;
     }
+    /* keep the body's standing shape around an anchor joint (held) or around its centre (falling after a gentle release) */
+    function keepShape(anchor, k) {
+      var ax, ay, ox, oy;
+      if (anchor) { ax = P[anchor].x; ay = P[anchor].y; ox = POSE[anchor][0]; oy = POSE[anchor][1]; }
+      else {
+        ax = 0; ay = 0; ox = 0; oy = 0;
+        NAMES.forEach(function (n) { ax += P[n].x; ay += P[n].y; ox += POSE[n][0]; oy += POSE[n][1]; });
+        ax /= NAMES.length; ay /= NAMES.length; ox /= NAMES.length; oy /= NAMES.length;
+      }
+      NAMES.forEach(function (n) {
+        if (n === anchor || n === drag) return;
+        var p = P[n], dx = (ax + POSE[n][0] - ox - p.x) * k, dy = (ay + POSE[n][1] - oy - p.y) * k;
+        p.x += dx; p.y += dy; p.px += dx * 0.85; p.py += dy * 0.85;
+      });
+    }
 
-    /* idle behaviour: move to another surface nearby (up to 80 px up, 170 px down) */
+    /* idle: move to another surface nearby (up to 80 px up, 170 px down) */
     function wander() {
       var cands = [];
       function add(x, top) {
         if (x < 24 || x > W - 24 || Math.abs(x - homeX) > 230) return;
-        var actual = surfaceUnder(x, -1e9);
-        if (Math.abs(actual - top) > 3) return;   // something else sits on top of it
+        if (Math.abs(surfaceUnder(x, -1e9) - top) > 3) return;   // something else sits on top of it
         if (baseY - top > 80 || top - baseY > 170) return;
         if (Math.abs(top - baseY) < 4 && Math.abs(x - homeX) < 24) return;
         cands.push({ x: x, y: top, up: top < baseY - 4 });
@@ -492,24 +554,63 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         var toL = homeX - plat.x, toR = plat.x + plat.w - homeX, f = toL < toR ? -1 : 1, edge = f < 0 ? plat.x + 6 : plat.x + plat.w - 6;
         if (Math.min(toL, toR) < 44 && surfaceUnder(edge + f * 16, baseY - 4) > baseY + 24) { sitEdge = true; face = f; homeX = edge; }
       }
-      state = 'sit'; gain = 0.2; sitUntil = t + 5 + Math.random() * 4;
+      state = 'sit'; gain = 0.2; poseUntil = t + 5 + Math.random() * 4;
+    }
+    function lieDown() {
+      face = Math.random() < 0.5 ? -1 : 1;
+      for (var k = 0; k < 2; k++, face = -face) {
+        var head = homeX - face * 54, foot = homeX + face * 36;
+        if (head > 12 && head < W - 12 && foot > 12 && foot < W - 12 &&
+            Math.abs(surfaceUnder(head, baseY - 4) - baseY) < 2.5 && Math.abs(surfaceUnder(foot, baseY - 4) - baseY) < 2.5) {
+          state = 'lie'; gain = 0.15; poseUntil = t + 6 + Math.random() * 3; return true;
+        }
+      }
+      return false;
+    }
+    function startAct(name) { act = { name: name, t0: t, dur: ACTS[name].dur }; }
+    function idle() {
+      var r = Math.random();
+      if (r < 0.22) { if (!wander()) sitDown(); }
+      else if (r < 0.40) sitDown();
+      else if (r < 0.50) { if (!lieDown()) startAct('stretch'); }
+      else if (r < 0.60) startAct('wave');
+      else if (r < 0.70) startAct('stretch');
+      else if (r < 0.80) startAct('dance');
+      else if (r < 0.89) startAct('hop');
+      else if (r < 0.95) startAct('look');
+      else startAct('scratch');
     }
     function target(n) {
-      if (state === 'sit') { var o = (sitEdge ? SIT_EDGE : SIT)[n]; return { x: homeX + face * o[0], y: baseY + o[1] }; }
+      if (state === 'sit' || state === 'lie') {
+        var o = (state === 'lie' ? LIE : sitEdge ? SIT_EDGE : SIT)[n], x = homeX + face * o[0], y = baseY + o[1];
+        if (state === 'sit' && sitEdge && (n === 'lF' || n === 'rF')) x += face * Math.sin(t * 3.2 + (n === 'lF' ? 0 : 1.6)) * 3.5;
+        return { x: x, y: y };
+      }
+      if (state === 'stand' && act) {
+        var ov = ACTS[act.name].f(n, t - act.t0);
+        if (ov) return { x: homeX + ov[0], y: baseY - 35 + ov[1] };
+      }
       var q = POSE[n]; return { x: homeX + q[0], y: baseY - 35 + q[1] };
     }
 
     function step(h) {
-      t += h;
+      t += h; lastH = h;
       staticT -= h; if (staticT <= 0) { computeStatics(); staticT = 0.5; }
       boxStep(h);
-      var g = 1800 * h * h, damp = drag ? 0.982 : 0.996;   // extra air drag while held, so the body hangs straight and can be set down
+      var g = 1800 * h * h, damp = drag ? 0.982 : 0.996;
       NAMES.forEach(function (n) {
         var p = P[n];
         if (n === drag) { p.px = p.x; p.py = p.y; p.x += (ptr.x - p.x) * 0.45; p.y += (ptr.y - p.y) * 0.45; return; }
         var vx = (p.x - p.px) * damp, vy = (p.y - p.py) * damp;
         p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + g;
       });
+      if (drag) keepShape(drag, 0.12);
+      if (state === 'drop') {
+        keepShape(null, 0.18);
+        var lf0 = P.lF, rf0 = P.rF, s0 = lf0.on || rf0.on || ((lf0.y >= floorY - 4 || rf0.y >= floorY - 4) ? 'floor' : null);
+        if (s0) settleOn(s0, P.pelvis.x, 0.6);
+        else if (t - dropT > 2.5) { state = 'ragdoll'; relT = t; rest = 0; }
+      }
       if (state === 'ragdoll' && !drag) {
         /* landed upright with both feet on one surface: catch itself right there */
         var lf = P.lF, rf = P.rF, sup = null;
@@ -518,12 +619,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
           else if (!lf.on && !rf.on && lf.y >= floorY - 4 && rf.y >= floorY - 4) sup = 'floor';
         }
         var pv = (Math.abs(P.pelvis.x - P.pelvis.px) + Math.abs(P.pelvis.y - P.pelvis.py)) / h;
-        if (sup && pv < 260) {
-          state = 'recover'; gain = 0.45; recT = t; climbing = false;
-          if (sup === 'floor') { homeX = clamp(P.pelvis.x, 24, W - 24); baseY = floorY; }
-          else if (sup.k === 'circle') { homeX = clamp(P.pelvis.x, sup.cx - sup.r * 0.35, sup.cx + sup.r * 0.35); baseY = circleTop(sup, homeX); }
-          else { homeX = clamp(P.pelvis.x, sup.x + 8, sup.x + sup.w - 8); baseY = sup.y; }
-        }
+        if (sup && pv < 260) settleOn(sup, P.pelvis.x, 0.45);
       }
       if (state === 'ragdoll' && !drag) {
         var sp = 0;
@@ -531,34 +627,36 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         sp = sp / NAMES.length / h;
         rest = sp < 80 ? rest + h : 0;
         if (rest > 0.4 || t - relT > 2.4) {
-          state = 'recover'; gain = 0; recT = t; climbing = false;
+          state = 'recover'; gain = 0; recT = t; climbing = false; act = null;
           homeX = clamp(P.pelvis.x, 24, W - 24); baseY = surfaceUnder(homeX, P.pelvis.y - 12);
         }
       }
-      if (state === 'stand' || state === 'sit') {
+      if (state === 'stand' || state === 'sit' || state === 'lie') {
         var s = surfaceUnder(homeX, baseY - 4);
-        if (s > baseY + 6) { state = 'ragdoll'; relT = t; rest = 0; }
+        if (s > baseY + 6) { state = 'ragdoll'; relT = t; rest = 0; act = null; }
         else baseY = s;
       }
-      var idleOK = (!reduce || engaged) && t - lastPoke > 6;
-      if (state === 'stand' && idleOK && t > nextIdle) {
-        if (Math.random() < 0.45 || !wander()) sitDown();
-        nextIdle = t + 6 + Math.random() * 5;
+      if (act && t - act.t0 > act.dur) { act = null; nextIdle = Math.min(nextIdle, t + 3 + Math.random() * 3); }
+      var idleOK = (!reduce || engaged) && t - lastPoke > 5;
+      if (state === 'stand' && !act && idleOK) {
+        var hd = dist(ptr, P.head);
+        if (t - ptrT < 0.3 && hd < 130 && t - lastWave > 6) { startAct('wave'); lastWave = t; }
+        else if (t > nextIdle) { idle(); nextIdle = t + 5 + Math.random() * 4; }
       }
-      if (state === 'sit' && t > sitUntil) { state = 'recover'; gain = 0.45; recT = t; climbing = true; nextIdle = t + 4 + Math.random() * 4; }
-      if (state === 'recover' || state === 'sit') gain = Math.min(1, gain + h * (state === 'sit' ? 1.1 : 0.8));
-      if (state !== 'ragdoll') {
+      if ((state === 'sit' || state === 'lie') && t > poseUntil) { state = 'recover'; gain = 0.35; recT = t; climbing = true; nextIdle = t + 3 + Math.random() * 3; }
+      if (state === 'recover' || state === 'sit' || state === 'lie') gain = Math.min(1, gain + h * (state === 'recover' ? 0.8 : 1.1));
+      if (state !== 'ragdoll' && state !== 'drop') {
         NAMES.forEach(function (n) {
           if (n === drag) return;
           var tg = target(n), tx = tg.x, ty = tg.y, k;
-          if (state === 'stand' && !reduce) {
+          if (state === 'stand' && !act && !reduce) {
             if (GROUP[n] === 2) ty += Math.sin(t * 2.1) * 1.1;
             if (n === 'lH') tx += Math.sin(t * 1.5) * 1.6;
             if (n === 'rH') tx -= Math.sin(t * 1.5) * 1.6;
           }
-          if (state === 'sit' && !reduce && GROUP[n] === 2) ty += Math.sin(t * 1.7) * 0.8;
+          if ((state === 'sit' || state === 'lie') && !reduce && GROUP[n] === 2) ty += Math.sin(t * (state === 'lie' ? 1.2 : 1.7)) * 0.8;
           if (state === 'stand') k = 0.3;
-          else { var gg = clamp(gain * 2.2 - GROUP[n] * 0.5, 0, 1); k = 0.004 + (state === 'sit' ? 0.12 : 0.09) * gg * gg; }
+          else { var gg = clamp(gain * 2.2 - GROUP[n] * 0.5, 0, 1); k = 0.004 + (state === 'recover' ? 0.09 : 0.12) * gg * gg; }
           var p = P[n], dx = (tx - p.x) * k, dy = (ty - p.y) * k;
           p.x += dx; p.y += dy; p.px += dx * 0.8; p.py += dy * 0.8;
         });
@@ -591,7 +689,8 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         if (p.on) { var bv = (p.on.vx || 0) * h; p.px = p.x - (bv + (p.x - p.px - bv) * 0.75); }
         else if (p.y >= floorY - r - 0.5) p.px = p.x - (p.x - p.px) * 0.75;
       });
-      if ((state === 'stand' || (state === 'sit' && gain >= 1)) && pushed > 3) { state = 'ragdoll'; relT = t; rest = 0; knocks++; }
+      var settled = state === 'stand' || ((state === 'sit' || state === 'lie') && gain >= 1);
+      if (settled && !(act && act.name === 'hop') && pushed > 3) { state = 'ragdoll'; relT = t; rest = 0; knocks++; act = null; }
     }
     function drawCrate(b) {
       ctx.fillStyle = COL.dim; ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -607,6 +706,11 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       ctx.fillStyle = COL.joint; ctx.fillRect(b.x, b.y, b.w, 2.5);
       if (b === held) { ctx.strokeStyle = COL.joint; ctx.lineWidth = 1.5; ctx.strokeRect(b.x - 2.5, b.y - 2.5, b.w + 5, b.h + 5); }
     }
+    function say(text, alpha) {
+      ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = COL.joint; ctx.textBaseline = 'middle';
+      ctx.font = '600 19px Caveat, "Segoe Print", cursive'; ctx.fillText(text, P.head.x + 12, P.head.y - 18);
+      ctx.restore();
+    }
     function draw() {
       drawFloor(0);
       boxes.forEach(function (b) {
@@ -621,29 +725,52 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         ctx.beginPath(); ctx.arc(P.head.x, P.head.y, 15 + 2 * Math.sin(t * 3), 0, Math.PI * 2); ctx.stroke();
       }
       drawStick(P, 1);
+      if (act && ACTS[act.name].say) { var s = t - act.t0; say(ACTS[act.name].say, Math.min(1, s * 4, (act.dur - s) * 4)); }
+      if (state === 'lie' && gain >= 1) {
+        for (var i = 0; i < 3; i++) {
+          var ph = ((t * 0.6 + i / 3) % 1);
+          ctx.save(); ctx.globalAlpha = Math.sin(ph * Math.PI); ctx.fillStyle = COL.joint;
+          ctx.font = '600 ' + (13 + ph * 8) + 'px Caveat, "Segoe Print", cursive';
+          ctx.fillText('z', P.head.x + face * (6 + ph * 14), P.head.y - 10 - ph * 34);
+          ctx.restore();
+        }
+      }
       if (hint) drawHint('drag & throw me!\nI can stand on the page too', P.neck.x - 12, P.neck.y + 6, 46, 14, 'left', t);
     }
     function hudText() {
-      if (hint) return 'drag & throw me · drop me on the photo or the chips';
+      if (hint) return 'drag & throw me · set me down on the photo or the chips';
       if (held) return 'crate in hand · drop it on me';
-      if (state === 'ragdoll') return drag ? 'wheee' : 'falling · throws ' + throws;
+      if (drag) return 'carried';
+      if (state === 'drop') return 'landing';
+      if (state === 'ragdoll') return 'tumbling · throws ' + throws;
       if (state === 'sit') return 'taking a break';
-      if (state === 'recover') return climbing ? (baseY < floorY - 4 ? 'climbing' : 'hopping down') : 'getting up · throws ' + throws;
+      if (state === 'lie') return 'napping';
+      if (state === 'recover') return climbing ? (baseY < floorY - 4 ? 'climbing' : 'on the move') : 'getting up · throws ' + throws;
+      if (act) return { wave: 'waving', stretch: 'stretching', hop: 'hopping', dance: 'dancing', look: 'looking around', scratch: 'thinking' }[act.name];
       return 'throws ' + throws + (knocks ? ' · knocked ' + knocks : '') + (lastUp ? ' · back on feet in ' + lastUp.toFixed(1) + 's' : '') + (crateTouched ? '' : ' · crates are grabbable too');
     }
     return {
       reset: reset, step: step, draw: draw, hud: hudText, grab: true,
       hitTest: function (x, y) { return !!(hitJoint(x, y, 26) || hitBox(x, y)); },
       down: function (x, y) {
-        lastPoke = t;
+        lastPoke = t; act = null;
         var n = hitJoint(x, y, 16) || (hitBox(x, y) ? null : hitJoint(x, y, 26));
-        if (n) { drag = n; ptr = { x: x, y: y }; state = 'ragdoll'; climbing = false; rest = 0; hint = false; throws++; return true; }
+        if (n) { drag = n; ptr = { x: x, y: y }; state = 'ragdoll'; climbing = false; rest = 0; hint = false; return true; }
         var b = hitBox(x, y);
         if (b) { held = b; crateTouched = true; ptr = { x: x, y: y }; grabOff = { x: x - b.x, y: y - b.y }; return true; }
         return false;
       },
-      move: function (x, y) { ptr = { x: x, y: y }; },
-      up: function () { lastPoke = t; if (drag) { drag = null; relT = t; rest = 0; } if (held) held = null; }
+      move: function (x, y) { ptr = { x: x, y: y }; ptrT = t; },
+      up: function () {
+        lastPoke = t;
+        if (drag) {
+          var p = P[drag], v = Math.sqrt((p.x - p.px) * (p.x - p.px) + (p.y - p.py) * (p.y - p.py)) / lastH;
+          drag = null; relT = t; rest = 0;
+          if (v > 650) { state = 'ragdoll'; throws++; }      // a real throw: go limp
+          else { state = 'drop'; dropT = t; }                 // set down: stay upright and land on the feet
+        }
+        if (held) held = null;
+      }
     };
   })();
 
@@ -754,7 +881,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     }
     function reset() {
       var gut = clamp(W * 0.04, 16, 44);
-      px = W < 760 ? 36 : Math.max(gut, (W - 1120) / 2 + gut) + 10;   // lines up with the text column above
+      px = W < 760 ? 36 : Math.max(36, Math.min(contentLeft() - 60, W * 0.08));   // out in the left margin, clear of the text
       ep = 1; best = 0; ctrl = 'agent'; waiting = reduce; resetEp();
     }
     function puff(x, yy, n) {
@@ -842,21 +969,25 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         return p.x > -10;
       });
     }
-    /* wide screens: right next to the runner, where the eye already is; phones: right edge */
-    function boardX() { return W >= 760 ? px + 60 : W - clamp(W * 0.04, 16, 44); }
+    /* wide screens: just above and right of the runner, where the eye already is; phones: right edge */
+    function boardX() { return W >= 760 ? px + 34 : W - clamp(W * 0.04, 16, 44); }
+    function boardY() {
+      // lift it clear of the runner when the margin left of the text column is free; otherwise stay in the play strip
+      return W >= 760 && boardX() + 215 < contentLeft() - 12 ? floorY - 100 : floorY - 58;
+    }
     function scoreboard() {
-      var wide = W >= 760, x = boardX(), shown = dead ? lastR : reward();
+      var wide = W >= 760, x = boardX(), y = boardY(), shown = dead ? lastR : reward();
       ctx.save(); ctx.textAlign = wide ? 'left' : 'right'; ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = '#A9B3C6'; ctx.font = '500 10.5px "IBM Plex Mono", monospace';
-      ctx.fillText(ctrl === 'you' ? 'YOUR REWARD' : waiting ? 'REWARD' : 'AGENT REWARD', x, floorY - 74);
+      ctx.fillText(ctrl === 'you' ? 'YOUR REWARD' : waiting ? 'REWARD' : 'AGENT REWARD', x, y - 18);
       ctx.fillStyle = flash > 0 ? '#FFF3C9' : COL.joint; ctx.font = '500 28px "IBM Plex Mono", monospace';
-      ctx.fillText(pad(shown), x, floorY - 46);
+      ctx.fillText(pad(shown), x, y + 8);
       ctx.fillStyle = '#A9B3C6'; ctx.font = '500 11px "IBM Plex Mono", monospace';
-      ctx.fillText('best ' + best + ' · your best ' + youBest, x, floorY - 30);
+      ctx.fillText('best ' + best + ' · your best ' + youBest, x, y + 22);
       if (newBest > 0) {
         ctx.globalAlpha = Math.min(1, newBest);
         ctx.fillStyle = COL.joint; ctx.font = '600 24px Caveat, "Segoe Print", cursive';
-        ctx.fillText('new best!', wide ? x + 104 : x - 104, floorY - 50);
+        ctx.fillText('new best!', wide ? x + 104 : x - 104, y + 4);
       }
       ctx.restore();
     }
@@ -918,8 +1049,8 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       ctx.globalAlpha = 1;
       if (!played) {
         var tip = canHover ? (waiting ? 'press space to run!' : 'space or click to jump!\ntwice for a double jump') : (waiting ? 'tap to run!' : 'tap to jump!\ntap twice for a double jump');
-        if (W >= 760) drawHint(tip, boardX() + 210, floorY - 8, 36, -46, 'right', t);   // beside the scoreboard, pointing at the floor
-        else drawHint(tip, px + 8, floorY - 48, 46, -26, 'right', t);
+        if (W >= 760) drawHint(tip, boardX() + 220, floorY - 8, 36, -46, 'right', t);   // beside the scoreboard, pointing at the floor
+        else drawHint(waiting ? (canHover ? 'space to run!' : 'tap to run!') : (canHover ? 'click to jump!' : 'tap to jump!') + '\ntwice: double jump', px + 8, floorY - 48, 46, -26, 'right', t);   // short, so it clears the scoreboard
       }
     }
     function hudText() {
