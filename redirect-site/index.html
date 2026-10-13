@@ -274,13 +274,14 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
   function drawHint(label, tx, ty, dx, dy, prefer, t) {
     ctx.save();
     ctx.font = '600 21px Caveat, "Segoe Print", "Comic Sans MS", cursive';
-    var w = ctx.measureText(label).width, side = prefer;
+    var lines = String(label).split('\n'), w = 0, side = prefer;
+    lines.forEach(function (s) { w = Math.max(w, ctx.measureText(s).width); });
     if (side === 'left' && tx - dx - w < 12) side = 'right';
     else if (side === 'right' && tx + dx + w > W - 12) side = 'left';
     var bob = reduce ? 0 : Math.sin(t * 3) * 2.5, y = ty + dy + bob;
-    var x0 = side === 'right' ? tx + dx : tx - dx - w;
+    var x0 = clamp(side === 'right' ? tx + dx : tx - dx - w, 8, Math.max(8, W - w - 8));
     ctx.fillStyle = COL.joint; ctx.textBaseline = 'middle';
-    ctx.fillText(label, x0, y);
+    lines.forEach(function (s, i) { ctx.fillText(s, x0, y + i * 20); });
     var sx = side === 'right' ? x0 - 6 : x0 + w + 6, sy = y - 2;
     var cx = (sx + tx) / 2, cy = Math.min(sy, ty) - 22;
     ctx.strokeStyle = COL.joint; ctx.lineWidth = 2; ctx.lineCap = 'round';
@@ -497,41 +498,131 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     };
   })();
 
-  /* Runner: an agent that jumps obstacles; exploration (ε) shrinks each episode. Space or tap the floor to play yourself. */
+  /* Runner: an agent hops obstacles and grabs reward pellets; exploration (ε) shrinks each episode.
+     Space, click or tap to jump; press again in the air for a double jump (with a flip). Obstacles unlock as reward grows:
+     box (jump) → spikes (long, low) → drone (stay down) → pillar (needs the double jump). */
   var RUN = (function () {
-    var px = 60, y = 0, vy = 0, ground = true, obs = [], speed = 270, dd = 0, ep = 1, best = 0, t = 0, ctrl = 'agent', eps = 0.55, spawnIn = 1, dead = false, deadT = 0, waiting = false, lastR = 0, played = false;
-    var G = 2600, JV = -Math.sqrt(2 * 2600 * 64);
-    function resetEp() { obs = []; speed = 270; dd = 0; y = floorY; vy = 0; ground = true; spawnIn = 0.9; dead = false; deadT = 0; eps = Math.max(0.04, 0.55 * Math.pow(0.8, ep - 1)); }
+    var G = 2600, JV = -Math.sqrt(2 * G * 64), JV2 = -Math.sqrt(2 * G * 56);
+    var px = 60, y = 0, vy = 0, ground = true, air = 0, spin = 0, obs = [], pel = [], fx = [], speed = 270, dd = 0, bonus = 0;
+    var ep = 1, best = 0, t = 0, ctrl = 'agent', eps = 0.55, spawnIn = 1, dead = false, deadT = 0, waiting = false, lastR = 0, played = false;
+    function reward() { return Math.floor(dd / 10) + bonus; }
+    function resetEp() {
+      obs = []; pel = []; fx = []; speed = 270; dd = 0; bonus = 0; y = floorY; vy = 0; ground = true; air = 0; spin = 0;
+      spawnIn = 0.9; dead = false; deadT = 0; eps = Math.max(0.04, 0.55 * Math.pow(0.8, ep - 1));
+    }
     function reset() { px = W < 760 ? 36 : Math.max(60, W * 0.06); ep = 1; best = 0; ctrl = 'agent'; waiting = reduce; resetEp(); }
-    function jump() { if (ground && !dead) { vy = JV; ground = false; } }
+    function puff(x, yy, n) {
+      for (var i = 0; i < n; i++) { var a = Math.PI + Math.random() * Math.PI, s = 40 + Math.random() * 90; fx.push({ k: 'p', x: x, y: yy, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6, life: 0.45 }); }
+    }
+    function jump() {
+      if (dead) return;
+      if (ground) { vy = JV; ground = false; air = 1; puff(px, floorY, 6); }
+      else if (air === 1) { vy = JV2; air = 2; spin = 1; fx.push({ k: 'ring', x: px, y: y, r: 4, life: 0.35 }); }
+    }
     function act() { if (dead) return; waiting = false; played = true; ctrl = 'you'; jump(); }
+    function die() { dead = true; deadT = 0; lastR = reward(); best = Math.max(best, lastR); puff(px, y - 20, 12); }
+    function spawn() {
+      var lv = reward(), types = ['box'], o;
+      if (lv > 15) types.push('spikes');
+      if (lv > 30) types.push('drone');
+      if (lv > 45) types.push('pillar', 'pillar');
+      var k = types[Math.floor(Math.random() * types.length)];
+      if (k === 'box') o = { w: 12 + Math.random() * 12, h: 16 + Math.random() * 18 };
+      else if (k === 'spikes') o = { w: 30 + Math.floor(Math.random() * 3) * 12, h: 13 };
+      else if (k === 'pillar') o = { w: 15, h: 74 + Math.random() * 14 };
+      else o = { w: 24, h: 10, lift: 66 + Math.random() * 8, ph: Math.random() * 6 };
+      o.k = k; o.x = W + 10;
+      obs.push(o);
+      if (k === 'drone') { if (Math.random() < 0.6) pel.push({ x: o.x + 40, y: floorY - 22 }); }
+      else if (Math.random() < 0.55) pel.push({ x: o.x + o.w / 2, y: floorY - (k === 'pillar' ? o.h + 24 : k === 'spikes' ? 50 : o.h + 28) });
+      // ≥ 1 s apart: enough to land from the last obstacle (≤ 0.4 s) and set up a pillar jump (0.42 s lead)
+      spawnIn = 1 + Math.random() * 0.8;
+    }
     function step(h) {
       t += h;
       if (ground) y = floorY;
+      fx = fx.filter(function (f) {
+        f.life -= h;
+        if (f.k === 'p') { f.x += f.vx * h; f.y += f.vy * h; f.vy += 300 * h; }
+        else if (f.k === 'ring') f.r += 120 * h;
+        else f.y -= 30 * h;
+        return f.life > 0;
+      });
       if (waiting) return;
-      if (dead) { deadT += h; if (deadT > 0.8) { ep++; ctrl = 'agent'; resetEp(); if (reduce) waiting = true; } return; }
-      speed += h * 7; dd += speed * h; spawnIn -= h;
-      if (spawnIn <= 0) { obs.push({ x: W + 10, w: 10 + Math.random() * 12, h: 16 + Math.random() * 20 }); spawnIn = 0.85 + Math.random() * 1.15; }
-      obs.forEach(function (o) { o.x -= speed * h; });
+      if (dead) { deadT += h; if (deadT > 0.9) { ep++; ctrl = 'agent'; resetEp(); if (reduce) waiting = true; } return; }
+      speed = Math.min(560, speed + h * 8); dd += speed * h; spawnIn -= h;
+      if (spawnIn <= 0) spawn();
+      obs.forEach(function (o) { o.x -= (o.k === 'drone' ? speed + 40 : speed) * h; });
+      pel.forEach(function (p) { p.x -= speed * h; });
       obs = obs.filter(function (o) { return o.x + o.w > -20; });
       if (ctrl === 'agent') {
         var o = null;
-        for (var i = 0; i < obs.length; i++) if (obs[i].x + obs[i].w > px - 6) { o = obs[i]; break; }
+        for (var i = 0; i < obs.length; i++) if (obs[i].x + obs[i].w > px - 8) { o = obs[i]; break; }
         if (o) {
-          var d = o.x - px, ideal = speed * 0.16 + 14;
-          if (o.plan === undefined && d < ideal + 90) { o.plan = Math.random() < eps ? (Math.random() < 0.5 ? 'early' : 'none') : 'good'; if (o.plan === 'early') jump(); }
-          if (o.plan === 'good' && !o.done && d < ideal) { o.done = true; jump(); }
+          var d = o.x - px, s = speed;
+          var ideal = o.k === 'pillar' ? s * 0.42 : o.k === 'spikes' ? s * 0.06 + 12 : o.k === 'drone' ? (s + 40) * 0.25 : s * 0.16 + 14;
+          if (o.plan === undefined && d < ideal + 90) {
+            if (Math.random() < eps) o.plan = o.k === 'drone' ? 'hop' : (o.k === 'pillar' && Math.random() < 0.5 ? 'single' : (Math.random() < 0.5 ? 'early' : 'none'));
+            else o.plan = o.k === 'drone' ? 'stay' : 'good';
+            if (o.plan === 'early' && ground) jump();
+          }
+          if ((o.plan === 'good' || o.plan === 'single' || o.plan === 'hop') && !o.done && d < ideal && ground) { o.done = true; jump(); }
+          if (o.k === 'pillar' && o.plan === 'good' && o.done && !o.dj && air === 1 && vy > -40) { o.dj = true; jump(); }
         }
       }
-      if (!ground) { vy += G * h; y += vy * h; if (y >= floorY) { y = floorY; vy = 0; ground = true; } }
-      for (var j = 0; j < obs.length; j++) {
-        var q = obs[j];
-        if (px + 6 > q.x && px - 6 < q.x + q.w && y > floorY - q.h) { dead = true; deadT = 0; lastR = Math.floor(dd / 10); best = Math.max(best, lastR); break; }
+      if (!ground) {
+        vy += G * h; y += vy * h;
+        if (y >= floorY) { y = floorY; vy = 0; ground = true; air = 0; spin = 0; puff(px, floorY, 4); }
       }
+      if (spin > 0) spin = Math.max(0, spin - h / 0.38);
+      var top = y - 46;
+      for (var j = 0; j < obs.length; j++) {
+        var q = obs[j], hit;
+        if (q.k === 'drone') hit = px + 6 > q.x && px - 6 < q.x + q.w && top < floorY - q.lift && y > floorY - q.lift - q.h;
+        else if (q.k === 'spikes') hit = px + 5 > q.x + 4 && px - 5 < q.x + q.w - 4 && y > floorY - q.h + 3;
+        else hit = px + 6 > q.x && px - 6 < q.x + q.w && y > floorY - q.h;
+        if (hit) { die(); break; }
+      }
+      pel = pel.filter(function (p) {
+        if (Math.abs(p.x - px) < 11 && p.y > top - 6 && p.y < y + 4) { bonus += 10; fx.push({ k: 'txt', x: p.x, y: p.y - 8, life: 0.7 }); puff(p.x, p.y, 8); return false; }
+        return p.x > -10;
+      });
     }
     function draw() {
       drawFloor(-dd % 14);
-      obs.forEach(function (o) { ctx.fillStyle = COL.dim; ctx.fillRect(o.x, floorY - o.h, o.w, o.h); ctx.fillStyle = COL.joint; ctx.fillRect(o.x, floorY - o.h, o.w, 2.5); });
+      obs.forEach(function (o) {
+        var by;
+        if (o.k === 'box') {
+          ctx.fillStyle = COL.dim; ctx.fillRect(o.x, floorY - o.h, o.w, o.h);
+          ctx.fillStyle = COL.joint; ctx.fillRect(o.x, floorY - o.h, o.w, 2.5);
+        } else if (o.k === 'pillar') {
+          ctx.fillStyle = COL.dim; ctx.fillRect(o.x, floorY - o.h, o.w, o.h);
+          ctx.fillStyle = COL.joint;
+          for (by = floorY - o.h; by < floorY - 6; by += 14) ctx.fillRect(o.x, by, o.w, 3);
+        } else if (o.k === 'spikes') {
+          var n = Math.round(o.w / 12), sw = o.w / n;
+          for (var i = 0; i < n; i++) {
+            var x0 = o.x + i * sw, mx = x0 + sw / 2;
+            ctx.fillStyle = COL.dim; ctx.beginPath(); ctx.moveTo(x0, floorY); ctx.lineTo(mx, floorY - o.h); ctx.lineTo(x0 + sw, floorY); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = COL.joint; ctx.beginPath(); ctx.moveTo(mx - 2.2, floorY - o.h + 4.5); ctx.lineTo(mx, floorY - o.h); ctx.lineTo(mx + 2.2, floorY - o.h + 4.5); ctx.closePath(); ctx.fill();
+          }
+        } else {
+          by = floorY - o.lift - o.h + (reduce ? 0 : Math.sin(t * 7 + o.ph) * 2);
+          var rw = 4 + Math.abs(Math.sin(t * 38 + o.ph)) * 4;
+          ctx.strokeStyle = COL.bone; ctx.lineWidth = 2; ctx.lineCap = 'round';
+          line({ x: o.x + 5, y: by + 4 }, { x: o.x + 5, y: by }, 2); line({ x: o.x + o.w - 5, y: by + 4 }, { x: o.x + o.w - 5, y: by }, 2);
+          ctx.fillStyle = COL.bone; ctx.fillRect(o.x + 3, by + 3, o.w - 6, o.h - 3);
+          dot({ x: o.x + o.w / 2 - 3, y: by + 7.5 }, 1.6, COL.nav);
+          ctx.strokeStyle = COL.joint;
+          line({ x: o.x + 5 - rw, y: by }, { x: o.x + 5 + rw, y: by }, 2);
+          line({ x: o.x + o.w - 5 - rw, y: by }, { x: o.x + o.w - 5 + rw, y: by }, 2);
+        }
+      });
+      pel.forEach(function (p) {
+        var r = 7 + (reduce ? 0 : Math.sin(t * 5 + p.x * 0.05) * 1.5);
+        ctx.strokeStyle = 'rgba(246, 196, 69, .45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+        dot(p, 4.2, COL.joint);
+      });
       var ph = dd * 0.045, hip = { x: px, y: y - 17 }, P = { pelvis: hip, neck: { x: px + 3, y: y - 33 }, head: { x: px + 4, y: y - 42 } };
       [['l', 0], ['r', Math.PI]].forEach(function (s) {
         var a = ground ? Math.sin(ph + s[1]) * 0.7 : (s[1] ? 0.9 : 0.2);
@@ -542,21 +633,32 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       });
       ctx.save();
       if (dead) { ctx.translate(px, y); ctx.rotate(-1.2 * Math.min(1, deadT * 5)); ctx.translate(-px, -y); }
+      else if (spin > 0) { ctx.translate(px, y - 22); ctx.rotate((1 - spin) * Math.PI * 2); ctx.translate(-px, -(y - 22)); }
       drawStick(P, 0.85);
       ctx.restore();
-      if (!played) drawHint(canHover ? (waiting ? 'press space to run!' : 'space or click to jump!') : (waiting ? 'tap to run!' : 'tap to jump!'), px + 8, floorY - 48, 46, -20, 'right', t);
+      fx.forEach(function (f) {
+        ctx.globalAlpha = Math.max(0, f.life / (f.k === 'txt' ? 0.7 : f.k === 'ring' ? 0.35 : 0.45));
+        if (f.k === 'p') dot(f, 1.8, COL.joint);
+        else if (f.k === 'ring') { ctx.strokeStyle = COL.joint; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * 1.6, f.r * 0.5, 0, 0, Math.PI * 2); ctx.stroke(); }
+        else { ctx.fillStyle = COL.joint; ctx.font = '500 12px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('+10', f.x, f.y); ctx.textAlign = 'left'; }
+      });
+      ctx.globalAlpha = 1;
+      if (!played) drawHint(canHover ? (waiting ? 'press space to run!' : 'space or click to jump!\ntwice for a double jump') : (waiting ? 'tap to run!' : 'tap to jump!\ntap twice for a double jump'), px + 8, floorY - 48, 46, -26, 'right', t);
     }
     function hudText() {
       if (waiting) return 'press space to run';
       if (dead) return 'episode ' + ep + ' over · reward ' + lastR;
-      return (ctrl === 'agent' ? 'agent' : 'you') + ' · ep ' + ep + ' · reward ' + Math.floor(dd / 10) + ' · best ' + best + (ctrl === 'agent' ? ' · ε ' + eps.toFixed(2) + ' · space to play' : '');
+      return (ctrl === 'agent' ? 'agent' : 'you') + ' · ep ' + ep + ' · reward ' + reward() + ' · best ' + best + (ctrl === 'agent' ? ' · ε ' + eps.toFixed(2) + ' · space to play' : ' · press twice to double jump');
     }
     function inStrip(x, y) { return y > floorY - 100 && y < H; }
     return {
       reset: reset, step: step, draw: draw, hud: hudText,
       hitTest: inStrip,
       down: function (x, y) { if (!inStrip(x, y)) return false; act(); return true; },
-      key: function (e) { if (e.code === 'Space' || e.key === ' ' || e.key === 'ArrowUp') { act(); return true; } return false; }
+      key: function (e) {
+        if (e.code === 'Space' || e.key === ' ' || e.key === 'ArrowUp') { if (!e.repeat) act(); return true; }
+        return false;
+      }
     };
   })();
 
