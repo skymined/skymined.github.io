@@ -254,7 +254,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
   var cv = document.getElementById('stage');
   var ctx = cv.getContext('2d');
   var hud = document.getElementById('hud');
-  var reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches), engaged = false;
   var COL = { bone: '#F3F5F7', joint: '#F6C445', dim: '#2A3858', nav: '#0B1220' };
   var W = 0, H = 0, floorY = 0, lastW = -1;
   var mode = null, modeName = 'ragdoll';
@@ -302,25 +302,62 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     JOINTS.forEach(function (n) { dot(P[n], 2.8 * s, COL.joint); });
   }
 
-  /* Ragdoll: Verlet stick figure among a few rigid crates (axis-aligned boxes with gravity and stacking).
-     Throw the figure or the crates. Once the figure settles, a pose controller stands it up on whatever is under it;
-     left alone, it climbs onto crates and hops back down. A crate shoved into it knocks it over. */
+  /* Ragdoll: Verlet stick figure among rigid crates and the page itself (name, chips, links and the photo ring are
+     solid). Throw the figure or the crates. Once the figure settles, a pose controller stands it up on whatever is under
+     it; left alone, it sits down, climbs onto nearby things and hops back down. A crate shoved into it knocks it over. */
   var RAG = (function () {
     var NAMES = ['head','neck','pelvis','lE','lH','rE','rH','lK','lF','rK','rF'];
     var POSE = { head: [0,-50], neck: [0,-38], pelvis: [0,0], lE: [-9,-26], lH: [-12,-13], rE: [9,-26], rH: [12,-13], lK: [-5,16], lF: [-7,32], rK: [5,16], rF: [7,32] };
+    /* sitting poses are relative to the surface (y = 0), facing right; mirrored for the left */
+    var SIT = { head: [-5,-54], neck: [-4,-42], pelvis: [0,-4], lE: [4,-29], lH: [11,-17], rE: [5,-29], rH: [13,-18], lK: [11,-17], lF: [24,-3], rK: [13,-15], rF: [27,-3] };
+    var SIT_EDGE = { head: [-4,-54], neck: [-3,-42], pelvis: [0,-4], lE: [-6,-28], lH: [-9,-15], rE: [2,-28], rH: [8,-16], lK: [16,-4], lF: [17,12], rK: [17,-3], rF: [19,13] };
     var GROUP = { lF: 0, rF: 0, lK: 0, rK: 0, pelvis: 1, neck: 2, head: 2, lE: 2, rE: 2, lH: 2, rH: 2 };
     var STICKS = BONES.concat([['head','pelvis']]);
-    var P = {}, sticks = [], boxes = [], state = 'stand', gain = 1, drag = null, held = null, grabOff = { x: 0, y: 0 }, ptr = { x: 0, y: 0 };
+    var P = {}, sticks = [], boxes = [], statics = [], state = 'stand', gain = 1, drag = null, held = null, grabOff = { x: 0, y: 0 }, ptr = { x: 0, y: 0 };
     var t = 0, rest = 0, relT = 0, recT = 0, throws = 0, knocks = 0, lastUp = 0, hint = true, homeX = 0, baseY = 0;
-    var climbing = false, nextWander = 7, lastPoke = -99, crateTouched = false;
+    var climbing = false, nextIdle = 7, lastPoke = -99, crateTouched = false, staticT = 0;
+    var sitEdge = false, face = 1, sitUntil = 0;
     function rad(n) { return n === 'head' ? 9 : 3; }
+
+    /* page elements as static colliders, in hero coordinates */
+    function rel(r, hr) { return { x: r.left - hr.left, y: r.top - hr.top, w: r.width, h: r.height }; }
+    function computeStatics() {
+      var hr = hero.getBoundingClientRect(), out = [];
+      hero.querySelectorAll('.chips li, .hero-links a, .copy, .bar').forEach(function (el) {
+        var r = el.getBoundingClientRect(); if (r.width > 0) { var s = rel(r, hr); s.k = 'rect'; out.push(s); }
+      });
+      var nameEl = hero.querySelector('.name'), tn = nameEl && nameEl.firstChild;
+      if (tn && tn.nodeType === 3) {
+        var rg = document.createRange(); rg.selectNodeContents(tn);
+        var nr = rg.getBoundingClientRect();
+        if (nr.width > 0) { var s = rel(nr, hr); s.y += s.h * 0.14; s.h *= 0.8; s.k = 'rect'; out.push(s); }
+      }
+      var ph = hero.querySelector('.photo');
+      if (ph) { var pr = rel(ph.getBoundingClientRect(), hr); if (pr.w > 0) out.push({ k: 'circle', cx: pr.x + pr.w / 2, cy: pr.y + pr.h / 2, r: pr.w / 2 + 9 }); }
+      statics = out;
+    }
+    function circleTop(c, x) { var dx = x - c.cx; return Math.abs(dx) < c.r * 0.7 ? c.cy - Math.sqrt(c.r * c.r - dx * dx) : null; }
+
     /* top of the highest surface at x that is not above fromY (the floor counts) */
     function surfaceUnder(x, fromY) {
       var y0 = floorY;
-      boxes.forEach(function (b) { if (b !== held && x > b.x - 3 && x < b.x + b.w + 3 && b.y >= fromY && b.y < y0) y0 = b.y; });
+      function consider(top) { if (top !== null && top >= fromY && top < y0) y0 = top; }
+      boxes.forEach(function (b) { if (b !== held && x > b.x - 3 && x < b.x + b.w + 3) consider(b.y); });
+      statics.forEach(function (s) { if (s.k === 'rect') { if (x > s.x - 3 && x < s.x + s.w + 3) consider(s.y); } else consider(circleTop(s, x)); });
       return y0;
     }
+    /* the flat thing (crate or page element) whose top is at y under x, if any */
+    function platformUnder(x, y) {
+      var found = null;
+      boxes.concat(statics).forEach(function (b) {
+        if (b === held || b.k === 'circle') return;
+        if (x > b.x - 3 && x < b.x + b.w + 3 && Math.abs(b.y - y) < 2.5) found = b;
+      });
+      return found;
+    }
+
     function reset() {
+      computeStatics();
       /* crate stack on the photo side (empty space), plank on the text side (low enough not to cover it) */
       var narrow = W < 760, hx = W * 0.62;
       var cx = Math.min(hx + (narrow ? 90 : 120), W - 40);
@@ -334,7 +371,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       var py = baseY - 35; P = {};
       NAMES.forEach(function (n) { var o = POSE[n]; P[n] = { x: hx + o[0], y: py + o[1], px: hx + o[0], py: py + o[1] }; });
       sticks = STICKS.map(function (s) { return { a: s[0], b: s[1], len: dist(P[s[0]], P[s[1]]) }; });
-      state = 'stand'; gain = 1; rest = 0; climbing = false; nextWander = t + 7;
+      state = 'stand'; gain = 1; rest = 0; climbing = false; nextIdle = t + 7;
     }
     function hitJoint(x, y, within) {
       var best = null, bd = within;
@@ -345,6 +382,8 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       for (var i = boxes.length - 1; i >= 0; i--) { var b = boxes[i]; if (x >= b.x - 4 && x <= b.x + b.w + 4 && y >= b.y - 4 && y <= b.y + b.h + 4) return b; }
       return null;
     }
+
+    /* crate vs crate */
     function resolve(a, b) {
       var ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
       if (ox <= 0 || oy <= 0) return;
@@ -364,6 +403,25 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         a.vx *= 0.5; b.vx *= 0.5;
       }
     }
+    /* crate vs a page element (which never moves) */
+    function resolveStatic(b, s) {
+      if (s.k === 'circle') {
+        var qx = clamp(s.cx, b.x, b.x + b.w), qy = clamp(s.cy, b.y, b.y + b.h), dx = qx - s.cx, dy = qy - s.cy, d = Math.sqrt(dx * dx + dy * dy);
+        if (d >= s.r) return;
+        if (d < 0.001) { dx = 0; dy = -1; d = 1; }
+        var push = s.r - d; b.x += dx / d * push; b.y += dy / d * push;
+        if (dy / d < -0.5) { if (b.vy > 0) b.vy = 0; b.vx *= 0.9; b.ground = true; } else { b.vx *= 0.5; }
+        return;
+      }
+      var ox = Math.min(b.x + b.w, s.x + s.w) - Math.max(b.x, s.x), oy = Math.min(b.y + b.h, s.y + s.h) - Math.max(b.y, s.y);
+      if (ox <= 0 || oy <= 0) return;
+      if (oy < ox) {
+        if (b.y + b.h / 2 < s.y + s.h / 2) { b.y = s.y - b.h; if (b.vy > 0) b.vy = 0; b.vx *= 0.86; b.ground = true; }
+        else { b.y = s.y + s.h; if (b.vy < 0) b.vy = 0; }
+      } else {
+        b.x = (b.x + b.w / 2 < s.x + s.w / 2) ? s.x - b.w : s.x + s.w; b.vx = -b.vx * 0.3;
+      }
+    }
     function boxStep(h) {
       boxes.forEach(function (b) {
         if (b === held) {
@@ -378,40 +436,72 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         if (b.x + b.w > W - 4) { b.x = W - 4 - b.w; b.vx = -b.vx * 0.3; }
         if (b.y < 4) { b.y = 4; b.vy = Math.abs(b.vy) * 0.3; }
       });
-      for (var it = 0; it < 4; it++) for (var i = 0; i < boxes.length; i++) for (var j = i + 1; j < boxes.length; j++) resolve(boxes[i], boxes[j]);
+      for (var it = 0; it < 4; it++) {
+        for (var i = 0; i < boxes.length; i++) for (var j = i + 1; j < boxes.length; j++) resolve(boxes[i], boxes[j]);
+        boxes.forEach(function (b) { if (b !== held) statics.forEach(function (s) { resolveStatic(b, s); }); });
+      }
       boxes.forEach(function (b) { if (b !== held && !b.ground && Math.abs(b.vy) < 1) b.vx *= 0.9; });
     }
-    /* push a particle out of every crate; returns how far it was moved */
+    /* push a particle out of crates and page elements; returns how far it was moved */
     function pushOut(p, r) {
       var moved = 0;
       p.on = null;
-      boxes.forEach(function (b) {
+      function rect(b) {
         var l = b.x - r, rr = b.x + b.w + r, tp = b.y - r, bt = b.y + b.h + r;
         if (p.x <= l || p.x >= rr || p.y <= tp || p.y >= bt) return;
         var dl = p.x - l, dr = rr - p.x, dt = p.y - tp, db = bt - p.y, m = Math.min(dl, dr, dt, db);
         if (m === dt) { p.y = tp; p.on = b; } else if (m === db) p.y = bt; else if (m === dl) p.x = l; else p.x = rr;
         moved += m;
+      }
+      boxes.forEach(rect);
+      statics.forEach(function (s) {
+        if (s.k === 'rect') { rect(s); return; }
+        var dx = p.x - s.cx, dy = p.y - s.cy, d = Math.sqrt(dx * dx + dy * dy), R = s.r + r;
+        if (d >= R) return;
+        if (d < 0.001) { dx = 0; dy = -1; d = 1; }
+        p.x = s.cx + dx / d * R; p.y = s.cy + dy / d * R; moved += R - d;
+        if (dy / d < -0.4) p.on = s;
       });
       return moved;
     }
+
+    /* idle behaviour: move to another surface nearby (up to 80 px up, 170 px down) */
     function wander() {
       var cands = [];
-      boxes.forEach(function (b) {
-        if (b === held || Math.abs(b.vx) > 5 || Math.abs(b.vy) > 5) return;
-        var x = b.x + b.w / 2, top = surfaceUnder(x, -1e9);
-        if (Math.abs(x - homeX) < 230 && baseY - top <= 80 && (Math.abs(top - baseY) > 4 || Math.abs(x - homeX) > 24)) cands.push({ x: x, y: top, up: top < baseY - 4 });
-      });
-      [-1, 1].forEach(function (s) {
-        var x = homeX + s * (70 + Math.random() * 60);
-        if (x > 24 && x < W - 24 && surfaceUnder(x, -1e9) === floorY) cands.push({ x: x, y: floorY, up: false });
-      });
-      if (!cands.length) return;
+      function add(x, top) {
+        if (x < 24 || x > W - 24 || Math.abs(x - homeX) > 230) return;
+        var actual = surfaceUnder(x, -1e9);
+        if (Math.abs(actual - top) > 3) return;   // something else sits on top of it
+        if (baseY - top > 80 || top - baseY > 170) return;
+        if (Math.abs(top - baseY) < 4 && Math.abs(x - homeX) < 24) return;
+        cands.push({ x: x, y: top, up: top < baseY - 4 });
+      }
+      boxes.forEach(function (b) { if (b !== held && Math.abs(b.vx) < 5 && Math.abs(b.vy) < 5) add(b.x + b.w / 2, b.y); });
+      statics.forEach(function (s) { if (s.k === 'rect') { if (s.w > 18) add(s.x + s.w / 2, s.y); } else add(s.cx, s.cy - s.r); });
+      [-1, 1].forEach(function (sg) { var x = homeX + sg * (70 + Math.random() * 60); if (surfaceUnder(x, -1e9) === floorY) add(x, floorY); });
+      if (!cands.length) return false;
       var ups = cands.filter(function (c) { return c.up; });
-      var pick = ups.length && Math.random() < 0.6 ? ups[Math.floor(Math.random() * ups.length)] : cands[Math.floor(Math.random() * cands.length)];
+      var pick = ups.length && Math.random() < 0.55 ? ups[Math.floor(Math.random() * ups.length)] : cands[Math.floor(Math.random() * cands.length)];
       homeX = pick.x; baseY = pick.y; state = 'recover'; gain = 0.3; recT = t; climbing = true;
+      return true;
     }
+    function sitDown() {
+      var plat = platformUnder(homeX, baseY);
+      sitEdge = false; face = Math.random() < 0.5 ? -1 : 1;
+      if (plat) {
+        var toL = homeX - plat.x, toR = plat.x + plat.w - homeX, f = toL < toR ? -1 : 1, edge = f < 0 ? plat.x + 6 : plat.x + plat.w - 6;
+        if (Math.min(toL, toR) < 44 && surfaceUnder(edge + f * 16, baseY - 4) > baseY + 24) { sitEdge = true; face = f; homeX = edge; }
+      }
+      state = 'sit'; gain = 0.2; sitUntil = t + 5 + Math.random() * 4;
+    }
+    function target(n) {
+      if (state === 'sit') { var o = (sitEdge ? SIT_EDGE : SIT)[n]; return { x: homeX + face * o[0], y: baseY + o[1] }; }
+      var q = POSE[n]; return { x: homeX + q[0], y: baseY - 35 + q[1] };
+    }
+
     function step(h) {
       t += h;
+      staticT -= h; if (staticT <= 0) { computeStatics(); staticT = 0.5; }
       boxStep(h);
       var g = 1800 * h * h, damp = drag ? 0.982 : 0.996;   // extra air drag while held, so the body hangs straight and can be set down
       NAMES.forEach(function (n) {
@@ -431,6 +521,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         if (sup && pv < 260) {
           state = 'recover'; gain = 0.45; recT = t; climbing = false;
           if (sup === 'floor') { homeX = clamp(P.pelvis.x, 24, W - 24); baseY = floorY; }
+          else if (sup.k === 'circle') { homeX = clamp(P.pelvis.x, sup.cx - sup.r * 0.35, sup.cx + sup.r * 0.35); baseY = circleTop(sup, homeX); }
           else { homeX = clamp(P.pelvis.x, sup.x + 8, sup.x + sup.w - 8); baseY = sup.y; }
         }
       }
@@ -444,31 +535,36 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
           homeX = clamp(P.pelvis.x, 24, W - 24); baseY = surfaceUnder(homeX, P.pelvis.y - 12);
         }
       }
-      if (state === 'stand') {
+      if (state === 'stand' || state === 'sit') {
         var s = surfaceUnder(homeX, baseY - 4);
         if (s > baseY + 6) { state = 'ragdoll'; relT = t; rest = 0; }
         else baseY = s;
-        if (state === 'stand' && !reduce && t > nextWander && t - lastPoke > 6) { wander(); nextWander = t + 6 + Math.random() * 5; }
       }
-      if (state === 'recover') gain = Math.min(1, gain + h * 0.8);
+      var idleOK = (!reduce || engaged) && t - lastPoke > 6;
+      if (state === 'stand' && idleOK && t > nextIdle) {
+        if (Math.random() < 0.45 || !wander()) sitDown();
+        nextIdle = t + 6 + Math.random() * 5;
+      }
+      if (state === 'sit' && t > sitUntil) { state = 'recover'; gain = 0.45; recT = t; climbing = true; nextIdle = t + 4 + Math.random() * 4; }
+      if (state === 'recover' || state === 'sit') gain = Math.min(1, gain + h * (state === 'sit' ? 1.1 : 0.8));
       if (state !== 'ragdoll') {
-        var cx = homeX, sy = baseY - 35;
         NAMES.forEach(function (n) {
           if (n === drag) return;
-          var o = POSE[n], tx = cx + o[0], ty = sy + o[1], k;
+          var tg = target(n), tx = tg.x, ty = tg.y, k;
           if (state === 'stand' && !reduce) {
             if (GROUP[n] === 2) ty += Math.sin(t * 2.1) * 1.1;
             if (n === 'lH') tx += Math.sin(t * 1.5) * 1.6;
             if (n === 'rH') tx -= Math.sin(t * 1.5) * 1.6;
           }
+          if (state === 'sit' && !reduce && GROUP[n] === 2) ty += Math.sin(t * 1.7) * 0.8;
           if (state === 'stand') k = 0.3;
-          else { var gg = clamp(gain * 2.2 - GROUP[n] * 0.5, 0, 1); k = 0.004 + 0.09 * gg * gg; }
+          else { var gg = clamp(gain * 2.2 - GROUP[n] * 0.5, 0, 1); k = 0.004 + (state === 'sit' ? 0.12 : 0.09) * gg * gg; }
           var p = P[n], dx = (tx - p.x) * k, dy = (ty - p.y) * k;
           p.x += dx; p.y += dy; p.px += dx * 0.8; p.py += dy * 0.8;
         });
         if (state === 'recover' && gain >= 1) {
           var err = 0;
-          NAMES.forEach(function (n) { var o = POSE[n]; err += Math.abs(cx + o[0] - P[n].x) + Math.abs(sy + o[1] - P[n].y); });
+          NAMES.forEach(function (n) { var tg = target(n); err += Math.abs(tg.x - P[n].x) + Math.abs(tg.y - P[n].y); });
           if (err / NAMES.length < 5 || t - recT > 2.6) { state = 'stand'; if (!climbing) lastUp = t - relT; climbing = false; }
         }
       }
@@ -492,10 +588,10 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       }
       NAMES.forEach(function (n) {
         var p = P[n], r = rad(n);
-        if (p.on) { var bv = p.on.vx * h; p.px = p.x - (bv + (p.x - p.px - bv) * 0.75); }
+        if (p.on) { var bv = (p.on.vx || 0) * h; p.px = p.x - (bv + (p.x - p.px - bv) * 0.75); }
         else if (p.y >= floorY - r - 0.5) p.px = p.x - (p.x - p.px) * 0.75;
       });
-      if (state === 'stand' && pushed > 3) { state = 'ragdoll'; relT = t; rest = 0; knocks++; }
+      if ((state === 'stand' || (state === 'sit' && gain >= 1)) && pushed > 3) { state = 'ragdoll'; relT = t; rest = 0; knocks++; }
     }
     function drawCrate(b) {
       ctx.fillStyle = COL.dim; ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -525,13 +621,14 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         ctx.beginPath(); ctx.arc(P.head.x, P.head.y, 15 + 2 * Math.sin(t * 3), 0, Math.PI * 2); ctx.stroke();
       }
       drawStick(P, 1);
-      if (hint) drawHint('drag & throw me!', P.neck.x - 12, P.neck.y + 6, 46, 22, 'left', t);
+      if (hint) drawHint('drag & throw me!\nI can stand on the page too', P.neck.x - 12, P.neck.y + 6, 46, 14, 'left', t);
     }
     function hudText() {
-      if (hint) return 'drag & throw me';
+      if (hint) return 'drag & throw me · drop me on the photo or the chips';
       if (held) return 'crate in hand · drop it on me';
       if (state === 'ragdoll') return drag ? 'wheee' : 'falling · throws ' + throws;
-      if (state === 'recover') return climbing ? (baseY < floorY ? 'climbing' : 'hopping down') : 'getting up · throws ' + throws;
+      if (state === 'sit') return 'taking a break';
+      if (state === 'recover') return climbing ? (baseY < floorY - 4 ? 'climbing' : 'hopping down') : 'getting up · throws ' + throws;
       return 'throws ' + throws + (knocks ? ' · knocked ' + knocks : '') + (lastUp ? ' · back on feet in ' + lastUp.toFixed(1) + 's' : '') + (crateTouched ? '' : ' · crates are grabbable too');
     }
     return {
@@ -655,7 +752,11 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       obs = []; pel = []; fx = []; speed = 270; dd = 0; bonus = 0; y = floorY; vy = 0; ground = true; air = 0; spin = 0;
       spawnIn = 0.9; dead = false; deadT = 0; eps = Math.max(0.04, 0.55 * Math.pow(0.8, ep - 1));
     }
-    function reset() { px = W < 760 ? 36 : Math.max(60, W * 0.06); ep = 1; best = 0; ctrl = 'agent'; waiting = reduce; resetEp(); }
+    function reset() {
+      var gut = clamp(W * 0.04, 16, 44);
+      px = W < 760 ? 36 : Math.max(gut, (W - 1120) / 2 + gut) + 10;   // lines up with the text column above
+      ep = 1; best = 0; ctrl = 'agent'; waiting = reduce; resetEp();
+    }
     function puff(x, yy, n) {
       for (var i = 0; i < n; i++) { var a = Math.PI + Math.random() * Math.PI, s = 40 + Math.random() * 90; fx.push({ k: 'p', x: x, y: yy, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6, life: 0.45 }); }
     }
@@ -741,19 +842,21 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         return p.x > -10;
       });
     }
+    /* wide screens: right next to the runner, where the eye already is; phones: right edge */
+    function boardX() { return W >= 760 ? px + 60 : W - clamp(W * 0.04, 16, 44); }
     function scoreboard() {
-      var rx = W - clamp(W * 0.04, 16, 44), shown = dead ? lastR : reward();
-      ctx.save(); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+      var wide = W >= 760, x = boardX(), shown = dead ? lastR : reward();
+      ctx.save(); ctx.textAlign = wide ? 'left' : 'right'; ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = '#A9B3C6'; ctx.font = '500 10.5px "IBM Plex Mono", monospace';
-      ctx.fillText((ctrl === 'agent' ? 'AGENT' : 'YOUR') + ' REWARD', rx, floorY - 74);
+      ctx.fillText(ctrl === 'you' ? 'YOUR REWARD' : waiting ? 'REWARD' : 'AGENT REWARD', x, floorY - 74);
       ctx.fillStyle = flash > 0 ? '#FFF3C9' : COL.joint; ctx.font = '500 28px "IBM Plex Mono", monospace';
-      ctx.fillText(pad(shown), rx, floorY - 46);
+      ctx.fillText(pad(shown), x, floorY - 46);
       ctx.fillStyle = '#A9B3C6'; ctx.font = '500 11px "IBM Plex Mono", monospace';
-      ctx.fillText('best ' + best + ' · your best ' + youBest, rx, floorY - 30);
+      ctx.fillText('best ' + best + ' · your best ' + youBest, x, floorY - 30);
       if (newBest > 0) {
         ctx.globalAlpha = Math.min(1, newBest);
         ctx.fillStyle = COL.joint; ctx.font = '600 24px Caveat, "Segoe Print", cursive';
-        ctx.fillText('new best!', rx - 104, floorY - 50);
+        ctx.fillText('new best!', wide ? x + 104 : x - 104, floorY - 50);
       }
       ctx.restore();
     }
@@ -813,7 +916,11 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         else { ctx.fillStyle = COL.joint; ctx.font = '500 12px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('+10', f.x, f.y); ctx.textAlign = 'left'; }
       });
       ctx.globalAlpha = 1;
-      if (!played) drawHint(canHover ? (waiting ? 'press space to run!' : 'space or click to jump!\ntwice for a double jump') : (waiting ? 'tap to run!' : 'tap to jump!\ntap twice for a double jump'), px + 8, floorY - 48, 46, -26, 'right', t);
+      if (!played) {
+        var tip = canHover ? (waiting ? 'press space to run!' : 'space or click to jump!\ntwice for a double jump') : (waiting ? 'tap to run!' : 'tap to jump!\ntap twice for a double jump');
+        if (W >= 760) drawHint(tip, boardX() + 210, floorY - 8, 36, -46, 'right', t);   // beside the scoreboard, pointing at the floor
+        else drawHint(tip, px + 8, floorY - 48, 46, -26, 'right', t);
+      }
     }
     function hudText() {
       if (waiting) return 'press space to run';
@@ -881,7 +988,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     if (e.target.closest && e.target.closest('a, button')) return;
     var p = local(e);
     if (mode.down && mode.down(p.x, p.y)) {
-      dragging = true;
+      dragging = true; engaged = true;
       try { hero.setPointerCapture(e.pointerId); } catch (err) {}
       e.preventDefault();
       if (mode.grab) hero.classList.add('grabbing');
@@ -906,7 +1013,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     if (!inView || !mode.key) return;
     var tg = e.target;
     if (tg && tg.closest && tg.closest('input, textarea, select, button, a')) return;
-    if (mode.key(e)) { lastAct = performance.now(); e.preventDefault(); }
+    if (mode.key(e)) { lastAct = performance.now(); engaged = true; e.preventDefault(); }
   });
 
   /* each visit starts on the next toy in the rotation */
