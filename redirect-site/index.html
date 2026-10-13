@@ -12,10 +12,13 @@
 <meta property="og:title" content="Haneul Kim · 김하늘">
 <meta property="og:description" content="Integrated M.S./Ph.D. student at IIIXR Lab, Korea University. Embodied agents and physics-based character animation.">
 <meta property="og:image" content="https://skymined.github.io/assets/profile.jpg">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B1220'/%3E%3Ccircle cx='16' cy='9' r='3.2' fill='none' stroke='%23F3F5F7' stroke-width='2'/%3E%3Cpath d='M16 12v9M16 15l-5 4M16 15l5 4M16 21l-4 6M16 21l4 6' stroke='%23F3F5F7' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='21' r='1.8' fill='%23F6C445'/%3E%3C/svg%3E">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Schibsted+Grotesk:wght@600;700;800&family=Source+Sans+3:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Schibsted+Grotesk:wght@600;700;800&family=Source+Sans+3:wght@400;600&family=Caveat:wght@600&display=swap">
 <style>
 /* Layout: full-bleed navy hero with a play strip along its floor; below it, the CV runs as one column on light paper. */
 :root {
@@ -139,7 +142,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         <ul class="chips"><li>Embodied Agents</li><li>Physics-based Animation</li><li>Reinforcement Learning</li><li>Computer Graphics</li></ul>
         <div class="hero-links">
           <a href="https://github.com/skymined" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://www.linkedin.com/in/sky-kim-545b5a303/" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="https://www.linkedin.com/in/haneul-kim-545b5a303/" target="_blank" rel="noopener">LinkedIn</a>
           <a href="https://skymined.github.io/blog/">Blog</a>
           <span><a href="mailto:adsky0309@korea.ac.kr" id="mail">adsky0309@korea.ac.kr</a><button class="copy" id="copy" type="button">copy</button></span>
         </div>
@@ -205,9 +208,12 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       <h2 class="sec-h" id="exp">Research Experience</h2>
       <div class="entries">
         <div class="entry">
-          <div class="entry-top"><b>Graduate Researcher</b><time datetime="2025-09">2025.09 – present</time></div>
-          <div class="entry-sub"><a href="https://iiixr.korea.ac.kr/" target="_blank" rel="noopener">IIIXR Lab</a>, Korea University</div>
-          <ul><li>Uncertainty-aware LLM planning for multi-agent embodied agents (ICLR 2026)</li></ul>
+          <div class="entry-top"><b>Undergraduate Student Researcher</b><time datetime="2025-03">2025.03 – 2025.08</time></div>
+          <div class="entry-sub"><a href="https://iiixr.korea.ac.kr/" target="_blank" rel="noopener">IIIXR Lab</a>, Korea University · Seoul</div>
+        </div>
+        <div class="entry">
+          <div class="entry-top"><b>Undergraduate Student Researcher</b><time datetime="2022-01">2022.01 – 2022.12</time></div>
+          <div class="entry-sub">Intelligent Project Management Lab, Korea University · Seoul</div>
         </div>
       </div>
     </section>
@@ -261,6 +267,30 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
   function drawFloor(off) {
     ctx.save(); ctx.strokeStyle = COL.dim; ctx.lineWidth = 1.5; ctx.setLineDash([6, 8]); ctx.lineDashOffset = off || 0;
     ctx.beginPath(); ctx.moveTo(0, floorY + 0.5); ctx.lineTo(W, floorY + 0.5); ctx.stroke(); ctx.restore();
+  }
+  var canHover = !!(window.matchMedia && matchMedia('(hover: hover)').matches);
+  if (document.fonts && document.fonts.load) document.fonts.load('600 21px Caveat').catch(function () {});
+  /* hand-drawn note + arrow pointing at (tx, ty); text sits dx to the preferred side, flips if it would leave the hero */
+  function drawHint(label, tx, ty, dx, dy, prefer, t) {
+    ctx.save();
+    ctx.font = '600 21px Caveat, "Segoe Print", "Comic Sans MS", cursive';
+    var w = ctx.measureText(label).width, side = prefer;
+    if (side === 'left' && tx - dx - w < 12) side = 'right';
+    else if (side === 'right' && tx + dx + w > W - 12) side = 'left';
+    var bob = reduce ? 0 : Math.sin(t * 3) * 2.5, y = ty + dy + bob;
+    var x0 = side === 'right' ? tx + dx : tx - dx - w;
+    ctx.fillStyle = COL.joint; ctx.textBaseline = 'middle';
+    ctx.fillText(label, x0, y);
+    var sx = side === 'right' ? x0 - 6 : x0 + w + 6, sy = y - 2;
+    var cx = (sx + tx) / 2, cy = Math.min(sy, ty) - 22;
+    ctx.strokeStyle = COL.joint; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
+    var ang = Math.atan2(ty - cy, tx - cx);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty); ctx.lineTo(tx - Math.cos(ang - 0.45) * 9, ty - Math.sin(ang - 0.45) * 9);
+    ctx.moveTo(tx, ty); ctx.lineTo(tx - Math.cos(ang + 0.45) * 9, ty - Math.sin(ang + 0.45) * 9);
+    ctx.stroke();
+    ctx.restore();
   }
   var BONES = [['head','neck'],['neck','pelvis'],['neck','lE'],['lE','lH'],['neck','rE'],['rE','rH'],['pelvis','lK'],['lK','lF'],['pelvis','rK'],['rK','rF']];
   var JOINTS = ['neck','lE','lH','rE','rH','pelvis','lK','lF','rK','rF'];
@@ -360,6 +390,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         ctx.beginPath(); ctx.arc(P.head.x, P.head.y, 15 + 2 * Math.sin(t * 3), 0, Math.PI * 2); ctx.stroke();
       }
       drawStick(P, 1);
+      if (hint) drawHint('drag & throw me!', P.neck.x - 12, P.neck.y + 6, 46, 22, 'left', t);
     }
     function hudText() {
       if (hint) return 'drag & throw me';
@@ -378,7 +409,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
 
   /* Reacher: 4-link arm solved with FABRIK. Hover to steer; leave it and a jittery "policy" chases the target. */
   var REACH = (function () {
-    var base = { x: 0, y: 0 }, L = [], J = [], goal = { x: 0, y: 0 }, tgt = { x: 0, y: 0 }, t = 0, ptr = null, lastMove = -9, score = 0, times = [], spawnT = 0, parts = [], user = false;
+    var base = { x: 0, y: 0 }, L = [], J = [], goal = { x: 0, y: 0 }, tgt = { x: 0, y: 0 }, t = 0, ptr = null, lastMove = -9, score = 0, times = [], spawnT = 0, parts = [], user = false, steered = false;
     function total() { return L.reduce(function (a, b) { return a + b; }, 0); }
     function reset() {
       base = { x: W < 760 ? W * 0.78 : W * 0.64, y: floorY };
@@ -419,6 +450,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
     function step(h) {
       t += h; base.y = floorY;
       user = !!ptr && (t - lastMove) < 1.5;
+      if (user) steered = true;
       var aim;
       if (user) aim = ptr;
       else if (reduce) aim = goal;
@@ -451,6 +483,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       for (var j = 0; j < J.length - 1; j++) dot(J[j], j === 0 ? 5 : 3.6, COL.joint);
       parts.forEach(function (p) { ctx.globalAlpha = Math.max(0, p.life / 0.6); dot(p, 2, COL.joint); });
       ctx.globalAlpha = 1;
+      if (!steered) drawHint(canHover ? 'hover here to steer me!' : 'drag here to steer me!', base.x + 6, base.y - 24, 42, -16, 'right', t);
     }
     function hudText() {
       var avg = times.length ? times.reduce(function (a, b) { return a + b; }, 0) / times.length : 0;
@@ -466,12 +499,12 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
 
   /* Runner: an agent that jumps obstacles; exploration (ε) shrinks each episode. Space or tap the floor to play yourself. */
   var RUN = (function () {
-    var px = 60, y = 0, vy = 0, ground = true, obs = [], speed = 270, dd = 0, ep = 1, best = 0, t = 0, ctrl = 'agent', eps = 0.55, spawnIn = 1, dead = false, deadT = 0, waiting = false, lastR = 0;
+    var px = 60, y = 0, vy = 0, ground = true, obs = [], speed = 270, dd = 0, ep = 1, best = 0, t = 0, ctrl = 'agent', eps = 0.55, spawnIn = 1, dead = false, deadT = 0, waiting = false, lastR = 0, played = false;
     var G = 2600, JV = -Math.sqrt(2 * 2600 * 64);
     function resetEp() { obs = []; speed = 270; dd = 0; y = floorY; vy = 0; ground = true; spawnIn = 0.9; dead = false; deadT = 0; eps = Math.max(0.04, 0.55 * Math.pow(0.8, ep - 1)); }
     function reset() { px = W < 760 ? 36 : Math.max(60, W * 0.06); ep = 1; best = 0; ctrl = 'agent'; waiting = reduce; resetEp(); }
     function jump() { if (ground && !dead) { vy = JV; ground = false; } }
-    function act() { if (dead) return; waiting = false; ctrl = 'you'; jump(); }
+    function act() { if (dead) return; waiting = false; played = true; ctrl = 'you'; jump(); }
     function step(h) {
       t += h;
       if (ground) y = floorY;
@@ -511,6 +544,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       if (dead) { ctx.translate(px, y); ctx.rotate(-1.2 * Math.min(1, deadT * 5)); ctx.translate(-px, -y); }
       drawStick(P, 0.85);
       ctx.restore();
+      if (!played) drawHint(canHover ? (waiting ? 'press space to run!' : 'space or click to jump!') : (waiting ? 'tap to run!' : 'tap to jump!'), px + 8, floorY - 48, 46, -20, 'right', t);
     }
     function hudText() {
       if (waiting) return 'press space to run';
