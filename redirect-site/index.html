@@ -969,15 +969,15 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
         return p.x > -10;
       });
     }
-    /* wide screens: just above and right of the runner, where the eye already is; phones: right edge */
-    function boardX() { return W >= 760 ? px + 34 : W - clamp(W * 0.04, 16, 44); }
-    function boardY() {
-      // lift it clear of the runner when the margin left of the text column is free; otherwise stay in the play strip
-      return W >= 760 && boardX() + 215 < contentLeft() - 12 ? floorY - 100 : floorY - 58;
-    }
+    /* Scoreboard placement. 'above': straight above the runner and higher than a double jump reaches (head tops out
+       around floorY - 169), which needs the empty margin left of the text column. 'side': the right end of the play
+       strip, out of the runner's path (narrower windows and phones). */
+    var BOARD_W = 200;
+    function boardAbove() { return px - BOARD_W / 2 >= 8 && px + BOARD_W / 2 <= contentLeft() - 12; }
     function scoreboard() {
-      var wide = W >= 760, x = boardX(), y = boardY(), shown = dead ? lastR : reward();
-      ctx.save(); ctx.textAlign = wide ? 'left' : 'right'; ctx.textBaseline = 'alphabetic';
+      var above = boardAbove(), x = above ? px : W - clamp(W * 0.04, 16, 44), y = above ? floorY - 206 : floorY - 58;
+      var shown = dead ? lastR : reward();
+      ctx.save(); ctx.textAlign = above ? 'center' : 'right'; ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = '#A9B3C6'; ctx.font = '500 10.5px "IBM Plex Mono", monospace';
       ctx.fillText(ctrl === 'you' ? 'YOUR REWARD' : waiting ? 'REWARD' : 'AGENT REWARD', x, y - 18);
       ctx.fillStyle = flash > 0 ? '#FFF3C9' : COL.joint; ctx.font = '500 28px "IBM Plex Mono", monospace';
@@ -987,7 +987,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       if (newBest > 0) {
         ctx.globalAlpha = Math.min(1, newBest);
         ctx.fillStyle = COL.joint; ctx.font = '600 24px Caveat, "Segoe Print", cursive';
-        ctx.fillText('new best!', wide ? x + 104 : x - 104, y + 4);
+        if (above) ctx.fillText('new best!', x, y - 36); else ctx.fillText('new best!', x - 104, y + 4);
       }
       ctx.restore();
     }
@@ -1049,8 +1049,9 @@ footer { max-width: 1120px; margin: 0 auto; padding: 20px var(--gut) calc(24px +
       ctx.globalAlpha = 1;
       if (!played) {
         var tip = canHover ? (waiting ? 'press space to run!' : 'space or click to jump!\ntwice for a double jump') : (waiting ? 'tap to run!' : 'tap to jump!\ntap twice for a double jump');
-        if (W >= 760) drawHint(tip, boardX() + 220, floorY - 8, 36, -46, 'right', t);   // beside the scoreboard, pointing at the floor
-        else drawHint(waiting ? (canHover ? 'space to run!' : 'tap to run!') : (canHover ? 'click to jump!' : 'tap to jump!') + '\ntwice: double jump', px + 8, floorY - 48, 46, -26, 'right', t);   // short, so it clears the scoreboard
+        // the long tip fits when the scoreboard is up above; next to a side scoreboard use the short one so they don't meet
+        if (!boardAbove()) tip = waiting ? (canHover ? 'space to run!' : 'tap to run!') : (canHover ? 'click to jump!' : 'tap to jump!') + '\ntwice: double jump';
+        drawHint(tip, px + 8, floorY - 48, 46, -26, 'right', t);
       }
     }
     function hudText() {
